@@ -19,7 +19,7 @@ export default function InterMohallaTournamentPage() {
             </div>
 
             <p className="mt-8 text-sm font-bold uppercase tracking-[0.3em] text-orange-400">
-              Hashemi Mohalla Presents
+              Hashemi Mohalla (Umoor Sehat) Presents
             </p>
 
             <h1 className="mt-4 text-5xl font-black leading-[0.95] tracking-tight text-white sm:text-6xl md:text-7xl">
@@ -268,7 +268,7 @@ export default function InterMohallaTournamentPage() {
           </p>
 
           <p className="mt-2 text-xs text-slate-400">
-            Mufaddal Husain Sports • In association with Hashemi Mohalla
+            Hashemi Mohalla (Umoor Sehat) in association with Mufaddal Husain Sports
           </p>
         </div>
       </footer>

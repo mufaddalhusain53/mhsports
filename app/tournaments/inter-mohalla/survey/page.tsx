@@ -119,7 +119,7 @@ export default function MohallaSurveyPage() {
         {/* Header */}
         <div className="mb-6 text-center">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-orange-500 sm:text-sm">
-            Hashemi Mohalla Presents
+            Hashemi Mohalla (Umoor Sehat) Presents
           </p>
 
           <h1 className="mt-3 text-3xl font-black leading-tight text-slate-900 sm:text-4xl md:text-5xl">
