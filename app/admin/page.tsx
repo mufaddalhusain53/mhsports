@@ -1,3 +1,4 @@
+export const instant = false;
 import { isAdminAuthenticated } from "../../lib/admin/auth";
 import { supabaseAdmin } from "../../lib/supabase/admin";
 import AdminDashboard from "./admin-dashboard";
