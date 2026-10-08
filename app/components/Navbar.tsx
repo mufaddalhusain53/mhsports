@@ -34,7 +34,7 @@ export default function Navbar() {
           <div className="hidden text-left sm:block">
 
             <div className="text-xl font-black tracking-tight text-slate-950 md:text-2xl">
-              MUFFADAL HUSAIN SPORTS
+              MUFADDAL HUSAIN SPORTS
             </div>
 
             <div className="mt-1 text-xs font-medium tracking-wide text-slate-500">

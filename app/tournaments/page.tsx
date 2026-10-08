@@ -18,7 +18,7 @@ const tournaments = [
     status: "Coming Soon",
   },
   {
-    name: "Mohalla Tournament",
+    name: "Inter Mohalla Tournament",
     slug: "/tournaments/inter-mohalla",
     icon: "🏘️",
     description:

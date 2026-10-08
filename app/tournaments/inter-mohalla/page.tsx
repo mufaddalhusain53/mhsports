@@ -73,16 +73,19 @@ export default function InterMohallaTournamentPage() {
 
             <div className="mt-6 space-y-4 text-base leading-7 text-slate-600">
               <p>
-                MH Sports is organizing an{" "}
-                <strong className="text-slate-900">
-                  Inter-Mohalla Leather Cricket Tournament
-                </strong>{" "}
-                in association with{" "}
-                <strong className="text-slate-900">
-                  Hashemi Mohalla
-                </strong>{" "}
-                for players from Mumbai &amp; Marol Jamiat.
-              </p>
+  <strong className="text-slate-900">
+    Hashemi Mohalla (Umoor Sehat)
+  </strong>{" "}
+  in association with{" "}
+  <strong className="text-slate-900">
+    MH Sports
+  </strong>{" "}
+  is organizing{" "}
+  <strong className="text-slate-900">
+    Inter-Mohalla Leather Cricket Tournament
+  </strong>{" "}
+  for players from Mumbai &amp; Marol Jamiat.
+</p>
 
               <p>
                 The tournament aims to bring players from different

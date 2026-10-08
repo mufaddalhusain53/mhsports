@@ -138,13 +138,19 @@ export default function MohallaSurveyPage() {
           <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
 
             <p>
-              MH Sports is organizing a{" "}
-              <strong className="text-slate-900">
-                Inter-Mohalla Leather Cricket Tournament in association with
-                Hashemi Mohalla
-              </strong>{" "}
-              for players from Mumbai &amp; Marol Jamiat.
-            </p>
+  <strong className="text-slate-900">
+    Hashemi Mohalla (Umoor Sehat)
+  </strong>{" "}
+  in association with{" "}
+  <strong className="text-slate-900">
+    MH Sports
+  </strong>{" "}
+  is organizing{" "}
+  <strong className="text-slate-900">
+    Inter-Mohalla Leather Cricket Tournament
+  </strong>{" "}
+  for players from Mumbai &amp; Marol Jamiat.
+</p>
 
             <p>
               Matches are proposed to be played every{" "}
