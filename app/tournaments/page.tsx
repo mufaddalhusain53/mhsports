@@ -19,7 +19,7 @@ const tournaments = [
   },
   {
     name: "Mohalla Tournament",
-    slug: "/tournaments/mohalla",
+    slug: "/tournaments/inter-mohalla",
     icon: "🏘️",
     description:
       "A new community cricket initiative bringing Mohallas together through the spirit of sport.",
