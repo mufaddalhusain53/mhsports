@@ -55,7 +55,6 @@ export default function MohallaSurveyPage() {
     if (error) {
       console.error("Supabase submission error:", error);
 
-      // PostgreSQL unique constraint violation
       if (error.code === "23505") {
         setErrorMessage(
           "A survey has already been submitted using this ITS ID. If you believe this is incorrect, please contact the organizers."
@@ -77,10 +76,6 @@ export default function MohallaSurveyPage() {
     });
   };
 
-  // ---------------------------------------------------------
-  // SUCCESS SCREEN
-  // ---------------------------------------------------------
-
   if (submitted) {
     return (
       <main className="min-h-[calc(100vh-112px)] bg-slate-50 px-4 py-12 sm:px-6 md:px-10">
@@ -95,7 +90,7 @@ export default function MohallaSurveyPage() {
             </h1>
 
             <p className="mt-4 leading-7 text-slate-600">
-              Thank you for participating in the Mohalla-Wise Cricket
+              Thank you for participating in the Inter Mohalla Leather Cricket
               Tournament survey.
             </p>
 
@@ -108,15 +103,11 @@ export default function MohallaSurveyPage() {
     );
   }
 
-  // ---------------------------------------------------------
-  // SURVEY PAGE
-  // ---------------------------------------------------------
-
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 md:px-10 md:py-12">
       <div className="mx-auto max-w-3xl">
 
-        {/* HASHEMI LOGO */}
+        {/* Hashemi Logo */}
         <div className="mb-6 flex justify-center">
           <img
             src="/hashemi-logo.png"
@@ -125,32 +116,34 @@ export default function MohallaSurveyPage() {
           />
         </div>
 
-        {/* HEADER */}
+        {/* Header */}
         <div className="mb-6 text-center">
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-orange-500 sm:text-sm">
             Hashemi Mohalla Presents
           </p>
 
           <h1 className="mt-3 text-3xl font-black leading-tight text-slate-900 sm:text-4xl md:text-5xl">
-            Mohalla-Wise
+            Inter Mohalla {" "}
             <br className="sm:hidden" />
-            Cricket Tournament
+            Leather Cricket Tournament
           </h1>
         </div>
 
-        {/* ABOUT TOURNAMENT */}
+        {/* About Tournament */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <h2 className="text-lg font-black text-slate-900">
             About the Tournament
           </h2>
 
           <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
+
             <p>
-              We are planning to organize a{" "}
+              MH Sports is organizing a{" "}
               <strong className="text-slate-900">
-                Mohalla-Wise Cricket Tournament
+                Inter-Mohalla Leather Cricket Tournament in association with
+                Hashemi Mohalla
               </strong>{" "}
-              for players from Mumbai &amp; Marol Jamiat, Inshallah.
+              for players from Mumbai &amp; Marol Jamiat.
             </p>
 
             <p>
@@ -170,8 +163,8 @@ export default function MohallaSurveyPage() {
               <strong className="text-slate-900">
                 National Holidays
               </strong>
-              . In case of any delays or unavoidable circumstances,
-              matches may occasionally be scheduled on{" "}
+              . In case of any delays or unavoidable circumstances, matches
+              may occasionally be scheduled on{" "}
               <strong className="text-slate-900">
                 Mondays
               </strong>
@@ -183,12 +176,13 @@ export default function MohallaSurveyPage() {
               <strong className="text-slate-900">
                 Mumbai &amp; Marol Jamiat
               </strong>{" "}
-              who regularly play cricket and may be interested in
+              who regularly play leather cricket and may be interested in
               participating in the tournament.
             </p>
+
           </div>
 
-          {/* IMPORTANT NOTICE */}
+          {/* Important Notice */}
           <div className="mt-6 rounded-xl border border-orange-200 bg-orange-50 p-4">
             <div className="flex gap-3">
               <div className="text-xl">⚠️</div>
@@ -208,12 +202,11 @@ export default function MohallaSurveyPage() {
           </div>
         </div>
 
-        {/* FORM */}
+        {/* Player Details Form */}
         <form
           onSubmit={handleSubmit}
           className="mt-6 rounded-2xl bg-white p-5 shadow-sm sm:p-7"
         >
-          {/* PLAYER DETAILS */}
           <div>
             <div className="border-b border-slate-200 pb-3">
               <h2 className="text-xl font-black text-slate-900">
@@ -227,7 +220,7 @@ export default function MohallaSurveyPage() {
 
             <div className="mt-6 space-y-5">
 
-              {/* NAME */}
+              {/* Name */}
               <div>
                 <label
                   htmlFor="name"
@@ -242,11 +235,11 @@ export default function MohallaSurveyPage() {
                   type="text"
                   required
                   placeholder="Enter your full name"
-                  className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 />
               </div>
 
-              {/* AGE */}
+              {/* Age */}
               <div>
                 <label
                   htmlFor="age"
@@ -259,47 +252,47 @@ export default function MohallaSurveyPage() {
                   id="age"
                   name="age"
                   type="number"
-                  min="1"
-                  max="100"
+                  min={18}
+                  max={100}
                   required
                   placeholder="Enter your age"
-                  className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 />
               </div>
 
               {/* ITS ID */}
-<div>
-  <label
-    htmlFor="itsId"
-    className="mb-2 block text-sm font-bold text-slate-700"
-  >
-    ITS ID <span className="text-red-500">*</span>
-  </label>
+              <div>
+                <label
+                  htmlFor="itsId"
+                  className="mb-2 block text-sm font-bold text-slate-700"
+                >
+                  ITS ID <span className="text-red-500">*</span>
+                </label>
 
-  <input
-    id="itsId"
-    name="itsId"
-    type="text"
-    inputMode="numeric"
-    pattern="[0-9]{8}"
-    maxLength={8}
-    minLength={8}
-    required
-    placeholder="Enter 8 digit ITS ID"
-    onInput={(event) => {
-      event.currentTarget.value = event.currentTarget.value
-        .replace(/\D/g, "")
-        .slice(0, 8);
-    }}
-    className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-  />
+                <input
+                  id="itsId"
+                  name="itsId"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]{8}"
+                  maxLength={8}
+                  minLength={8}
+                  required
+                  placeholder="Enter 8 digit ITS ID"
+                  onInput={(event) => {
+                    event.currentTarget.value = event.currentTarget.value
+                      .replace(/\D/g, "")
+                      .slice(0, 8);
+                  }}
+                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                />
 
-  <p className="mt-2 text-xs text-slate-500">
-    ITS ID must contain exactly 8 digits.
-  </p>
-</div>
+                <p className="mt-2 text-xs text-slate-500">
+                  ITS ID must contain exactly 8 digits.
+                </p>
+              </div>
 
-              {/* MOBILE */}
+              {/* Mobile */}
               <div>
                 <label
                   htmlFor="mobile"
@@ -315,13 +308,19 @@ export default function MohallaSurveyPage() {
                   inputMode="numeric"
                   pattern="[6-9][0-9]{9}"
                   maxLength={10}
+                  minLength={10}
                   required
                   placeholder="Enter 10 digit mobile number"
-                  className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  onInput={(event) => {
+                    event.currentTarget.value = event.currentTarget.value
+                      .replace(/\D/g, "")
+                      .slice(0, 10);
+                  }}
+                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 />
               </div>
 
-              {/* CITY */}
+              {/* City */}
               <div>
                 <label
                   htmlFor="city"
@@ -336,55 +335,92 @@ export default function MohallaSurveyPage() {
                   value={city}
                   onChange={(event) => setCity(event.target.value)}
                   required
-                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 >
-                  <option value="" disabled>
+                  <option value="">
                     Select your city / locality
                   </option>
 
-                  <option value="Mumbai Town">Mumbai Town</option>
-                  <option value="Bandra">Bandra</option>
-                  <option value="Andheri">Andheri</option>
-                  <option value="Mira Road">Mira Road</option>
-                  <option value="Bhayander">Bhayander</option>
-                  <option value="Nalasopara">Nalasopara</option>
-                  <option value="Vasai">Vasai</option>
-                  <option value="Kurla">Kurla</option>
-                  <option value="Thane">Thane</option>
-                  <option value="Marol">Marol</option>
-                  <option value="Dombivali">Dombivali</option>
-                  <option value="Kalyan">Kalyan</option>
-                  <option value="Mumbra">Mumbra</option>
-                  <option value="Vashind">Vashind</option>
-                  <option value="Kharghar">Kharghar</option>
-                  <option value="Vashi">Vashi</option>
-                  <option value="Nerul">Nerul</option>
-                  <option value="Others">Others</option>
+                  <option value="Mumbai Town">
+                    Mumbai Town
+                  </option>
+                  <option value="Bandra">
+                    Bandra
+                  </option>
+                  <option value="Andheri">
+                    Andheri
+                  </option>
+                  <option value="Mira Road">
+                    Mira Road
+                  </option>
+                  <option value="Bhayander">
+                    Bhayander
+                  </option>
+                  <option value="Nalasopara">
+                    Nalasopara
+                  </option>
+                  <option value="Vasai">
+                    Vasai
+                  </option>
+                  <option value="Kurla">
+                    Kurla
+                  </option>
+                  <option value="Thane">
+                    Thane
+                  </option>
+                  <option value="Marol">
+                    Marol
+                  </option>
+                  <option value="Dombivali">
+                    Dombivali
+                  </option>
+                  <option value="Kalyan">
+                    Kalyan
+                  </option>
+                  <option value="Mumbra">
+                    Mumbra
+                  </option>
+                  <option value="Vashind">
+                    Vashind
+                  </option>
+                  <option value="Kharghar">
+                    Kharghar
+                  </option>
+                  <option value="Vashi">
+                    Vashi
+                  </option>
+                  <option value="Nerul">
+                    Nerul
+                  </option>
+                  <option value="Others">
+                    Others
+                  </option>
                 </select>
-
-                {city === "Others" && (
-                  <div className="mt-4">
-                    <label
-                      htmlFor="otherCity"
-                      className="mb-2 block text-sm font-bold text-slate-700"
-                    >
-                      Please specify your city / locality{" "}
-                      <span className="text-red-500">*</span>
-                    </label>
-
-                    <input
-                      id="otherCity"
-                      name="otherCity"
-                      type="text"
-                      required
-                      placeholder="Enter your city / locality"
-                      className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                    />
-                  </div>
-                )}
               </div>
 
-              {/* JAMIAT */}
+              {/* Other City */}
+              {city === "Others" && (
+                <div>
+                  <label
+                    htmlFor="otherCity"
+                    className="mb-2 block text-sm font-bold text-slate-700"
+                  >
+                    Please specify your city / locality{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+
+                  <input
+                    id="otherCity"
+                    name="otherCity"
+                    type="text"
+                    required
+                    placeholder="Enter your city / locality"
+                    className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  />
+                </div>
+              )}
+
+              {/* Jamiat */}
               <div>
                 <label
                   htmlFor="jamiat"
@@ -397,19 +433,23 @@ export default function MohallaSurveyPage() {
                   id="jamiat"
                   name="jamiat"
                   required
-                  defaultValue=""
-                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 >
-                  <option value="" disabled>
+                  <option value="">
                     Select Jamiat
                   </option>
 
-                  <option value="Mumbai">Mumbai</option>
-                  <option value="Marol">Marol</option>
+                  <option value="Mumbai">
+                    Mumbai
+                  </option>
+
+                  <option value="Marol">
+                    Marol
+                  </option>
                 </select>
               </div>
 
-              {/* MOHALLA */}
+              {/* Jamaat / Mohalla */}
               <div>
                 <label
                   htmlFor="mohalla"
@@ -425,13 +465,14 @@ export default function MohallaSurveyPage() {
                   type="text"
                   required
                   placeholder="Enter your Jamaat / Mohalla"
-                  className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 />
               </div>
+
             </div>
           </div>
 
-          {/* CRICKET DETAILS */}
+          {/* Cricket Details */}
           <div className="mt-10">
             <div className="border-b border-slate-200 pb-3">
               <h2 className="text-xl font-black text-slate-900">
@@ -458,17 +499,17 @@ export default function MohallaSurveyPage() {
                 type="text"
                 required
                 placeholder="Enter the name of your current cricket team"
-                className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
               />
 
               <p className="mt-2 text-xs text-slate-500">
-                Please enter the team you currently play for on
-                Saturdays or Sundays.
+                Please enter the team you currently play for on Saturdays or
+                Sundays.
               </p>
             </div>
           </div>
 
-          {/* AVAILABILITY */}
+          {/* Availability */}
           <div className="mt-10">
             <div className="border-b border-slate-200 pb-3">
               <h2 className="text-xl font-black text-slate-900">
@@ -502,15 +543,15 @@ export default function MohallaSurveyPage() {
                   </span>
 
                   <span className="mt-1 block text-sm leading-5 text-slate-500">
-                    I understand the proposed schedule and confirm
-                    that I am available to participate.
+                    I understand the proposed schedule and confirm that I am
+                    available to participate.
                   </span>
                 </span>
               </label>
             </div>
           </div>
 
-          {/* ERROR MESSAGE */}
+          {/* Error */}
           {errorMessage && (
             <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
               <p className="font-bold">
@@ -523,7 +564,7 @@ export default function MohallaSurveyPage() {
             </div>
           )}
 
-          {/* SUBMIT */}
+          {/* Submit */}
           <div className="mt-10">
             <button
               type="submit"
@@ -540,7 +581,7 @@ export default function MohallaSurveyPage() {
           </div>
         </form>
 
-        {/* FOOTER */}
+        {/* Footer */}
         <p className="px-4 py-8 text-center text-xs leading-5 text-slate-400">
           Hashemi Mohalla • Mufaddal Husain Sports
         </p>
