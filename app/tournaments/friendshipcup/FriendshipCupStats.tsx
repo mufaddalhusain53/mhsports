@@ -1,0 +1,380 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+type Category = "Batting" | "Bowling" | "Fielding" | "MVP";
+type Row = Record<string, string | number> & { __season?: number; __playerKey?: string };
+type SeasonData = Record<Category, Row[]>;
+type Column = { key: string; label: string; numeric?: boolean; hideOnSmall?: boolean };
+
+const SEASONS = [
+  { season: 1, id: "164635" },
+  { season: 2, id: "296154" },
+  { season: 3, id: "488984" },
+  { season: 4, id: "751465" },
+  { season: 5, id: "1125302" },
+  { season: 6, id: "1606121" },
+  { season: 7, id: "2206973" }
+];
+const CATEGORIES: Category[] = ["Batting", "Bowling", "Fielding", "MVP"];
+const FILE_CATEGORY: Record<Category, string> = {
+  Batting: "batting",
+  Bowling: "bowling",
+  Fielding: "fielding",
+  MVP: "mvp",
+};
+
+const COLUMNS: Record<Category, Column[]> = {
+  Batting: [
+    { key: "name", label: "Player" },
+    { key: "total_match", label: "Matches", numeric: true },
+    { key: "innings", label: "Innings", numeric: true, hideOnSmall: true },
+    { key: "total_runs", label: "Runs", numeric: true },
+    { key: "highest_run", label: "High Score", numeric: true },
+    { key: "average", label: "Average", numeric: true },
+    { key: "strike_rate", label: "Strike Rate", numeric: true },
+    { key: "4s", label: "4s", numeric: true, hideOnSmall: true },
+    { key: "6s", label: "6s", numeric: true, hideOnSmall: true },
+    { key: "50s", label: "50s", numeric: true, hideOnSmall: true },
+    { key: "100s", label: "100s", numeric: true, hideOnSmall: true },
+  ],
+  Bowling: [
+    { key: "name", label: "Player" },
+    { key: "total_match", label: "Matches", numeric: true },
+    { key: "innings", label: "Innings", numeric: true, hideOnSmall: true },
+    { key: "total_wickets", label: "Wickets", numeric: true },
+    { key: "highest_wicket", label: "Best Wkts", numeric: true },
+    { key: "runs", label: "Runs", numeric: true },
+    { key: "overs", label: "Overs", numeric: true, hideOnSmall: true },
+    { key: "economy", label: "Economy", numeric: true },
+    { key: "avg", label: "Average", numeric: true, hideOnSmall: true },
+    { key: "SR", label: "Strike Rate", numeric: true, hideOnSmall: true },
+    { key: "maidens", label: "Maidens", numeric: true, hideOnSmall: true },
+  ],
+  Fielding: [
+    { key: "name", label: "Player" },
+    { key: "total_match", label: "Matches", numeric: true },
+    { key: "catches", label: "Catches", numeric: true },
+    { key: "caught_behind", label: "Keeper Catches", numeric: true, hideOnSmall: true },
+    { key: "run_outs", label: "Run Outs", numeric: true },
+    { key: "stumpings", label: "Stumpings", numeric: true, hideOnSmall: true },
+    { key: "caught_and_bowl", label: "Caught & Bowled", numeric: true, hideOnSmall: true },
+    { key: "total_dismissal", label: "Dismissals", numeric: true },
+  ],
+  MVP: [
+    { key: "name", label: "Player" },
+    { key: "matches", label: "Matches", numeric: true },
+    { key: "batting", label: "Batting Points", numeric: true },
+    { key: "bowling", label: "Bowling Points", numeric: true },
+    { key: "fielding", label: "Fielding Points", numeric: true },
+    { key: "total", label: "MVP Points", numeric: true },
+  ],
+};
+
+function parseCsv(text: string): Row[] {
+  const records: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === '"') {
+      if (quoted && text[i + 1] === '"') {
+        cell += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (char === "," && !quoted) {
+      row.push(cell.trim());
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && text[i + 1] === "\n") i += 1;
+      row.push(cell.trim());
+      if (row.some((value) => value !== "")) records.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  if (cell.length || row.length) {
+    row.push(cell.trim());
+    if (row.some((value) => value !== "")) records.push(row);
+  }
+  if (records.length < 2) return [];
+  const headers = records[0].map((header) => header.replace(/^\uFEFF/, "").trim());
+  return records.slice(1).map((values) => {
+    const record: Row = {};
+    headers.forEach((header, index) => {
+      const value = values[index] ?? "";
+      const numeric = value !== "" && /^-?\d+(\.\d+)?$/.test(value);
+      record[header] = numeric ? Number(value) : value;
+    });
+    return record;
+  });
+}
+
+function numberOf(row: Row, key: string): number {
+  const value = row[key];
+  return typeof value === "number" ? value : Number(value) || 0;
+}
+function textOf(row: Row, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "Unknown player";
+}
+function normalizeName(value: unknown): string {
+  return String(value ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]/g, "");
+}
+function playerKey(row: Row): string {
+  const id = row.player_id;
+  return id !== undefined && id !== null && String(id).trim() !== "" ? String(id).trim() : "";
+}
+function aggregateRows(rows: Row[], category: Category): Row[] {
+  const groups = new Map<string, Row[]>();
+  rows.forEach((row) => {
+    const key = playerKey(row);
+    // CricHeroes player ID is the canonical identity. Rows without an ID are excluded
+    // rather than incorrectly merging unrelated players by display name.
+    if (!key) return;
+    const existing = groups.get(key) ?? [];
+    existing.push(row);
+    groups.set(key, existing);
+  });
+  return Array.from(groups.values()).map((group) => {
+    const latest = [...group].sort((a, b) => (b.__season ?? 0) - (a.__season ?? 0))[0];
+    const result: Row = { ...latest, __playerKey: playerKey(latest) };
+    const sum = (key: string) => group.reduce((total, row) => total + numberOf(row, key), 0);
+    const max = (key: string) => Math.max(...group.map((row) => numberOf(row, key)));
+    if (category === "Batting") {
+      ["total_match", "innings", "total_runs", "not_out", "ball_faced", "4s", "6s", "50s", "100s"].forEach((key) => (result[key] = sum(key)));
+      result.highest_run = max("highest_run");
+      result.average = sum("innings") - sum("not_out") > 0 ? sum("total_runs") / (sum("innings") - sum("not_out")) : 0;
+      result.strike_rate = sum("ball_faced") > 0 ? (sum("total_runs") / sum("ball_faced")) * 100 : 0;
+    } else if (category === "Bowling") {
+      ["total_match", "innings", "total_wickets", "balls", "maidens", "runs", "dot_balls"].forEach((key) => (result[key] = sum(key)));
+      result.highest_wicket = max("highest_wicket");
+      // Cricket overs are stored as overs notation in source files; aggregate using balls.
+      result.overs = Math.floor(sum("balls") / 6) + (sum("balls") % 6) / 10;
+      result.economy = sum("balls") > 0 ? (sum("runs") / sum("balls")) * 6 : 0;
+      result.avg = sum("total_wickets") > 0 ? sum("runs") / sum("total_wickets") : 0;
+      result.SR = sum("total_wickets") > 0 ? sum("balls") / sum("total_wickets") : 0;
+    } else if (category === "Fielding") {
+      ["total_match", "catches", "caught_behind", "run_outs", "assist_run_outs", "stumpings", "caught_and_bowl", "total_catches", "total_dismissal"].forEach((key) => (result[key] = sum(key)));
+    } else if (category === "MVP") {
+      ["matches", "batting", "bowling", "fielding", "total"].forEach((key) => (result[key] = sum(key)));
+    }
+    return result;
+  });
+}
+function formatValue(value: string | number | undefined): string {
+  if (value === undefined || value === "") return "";
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? value.toLocaleString("en-IN") : value.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  }
+  return value;
+}
+
+export default function FriendshipCupStats() {
+  const [season, setSeason] = useState("all");
+  const [category, setCategory] = useState<Category>("Batting");
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState("total_runs");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [data, setData] = useState<SeasonData>({ Batting: [], Bowling: [], Fielding: [], MVP: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      setLoading(true); setError("");
+      try {
+        const response = await fetch("/api/fc-season-stats", { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? "Unable to load stats from Supabase.");
+        const next: SeasonData = { Batting: [], Bowling: [], Fielding: [], MVP: [] };
+        const uploaded = (payload.files ?? []) as Array<{ season: number; category: string; csv_content: string }>;
+        const bySeasonCategory = new Map(uploaded.map((item) => [`${item.season}:${item.category}`, item.csv_content]));
+        const categoryMap: Record<string, Category> = { batting: "Batting", bowling: "Bowling", fielding: "Fielding", mvp: "MVP" };
+        for (const item of uploaded) {
+          const category = categoryMap[item.category];
+          if (!category) continue;
+          const rows = parseCsv(item.csv_content).map((row) => ({ ...row, __season: item.season }));
+          if (category !== "MVP") next[category].push(...rows);
+        }
+        // MVP CSVs are matched to canonical CricHeroes IDs from the same season's
+        // batting/bowling/fielding uploads, with a globally unique-name fallback.
+        const globalIdsByName = new Map<string, Set<string>>();
+        const globalCanonicalNameById = new Map<string, string>();
+        ( ["Batting", "Bowling", "Fielding"] as Category[]).forEach((cat) => next[cat].forEach((row) => {
+          const id = playerKey(row); const normalized = normalizeName(textOf(row, "name", "Player Name", "player_name"));
+          if (!id || !normalized) return;
+          const ids = globalIdsByName.get(normalized) ?? new Set<string>(); ids.add(id); globalIdsByName.set(normalized, ids);
+          globalCanonicalNameById.set(id, textOf(row, "name", "Player Name", "player_name"));
+        }));
+        for (const seasonInfo of SEASONS) {
+          const mvpText = bySeasonCategory.get(`${seasonInfo.season}:mvp`);
+          if (!mvpText) continue;
+          const seasonIdsByName = new Map<string, Set<string>>();
+          const seasonNamesById = new Map<string, string>();
+          ( ["Batting", "Bowling", "Fielding"] as Category[]).forEach((cat) => next[cat].filter((row) => row.__season === seasonInfo.season).forEach((row) => {
+            const id = playerKey(row); const normalized = normalizeName(textOf(row, "name", "Player Name", "player_name"));
+            if (!id || !normalized) return;
+            const ids = seasonIdsByName.get(normalized) ?? new Set<string>(); ids.add(id); seasonIdsByName.set(normalized, ids);
+            seasonNamesById.set(id, textOf(row, "name", "Player Name", "player_name"));
+          }));
+          parseCsv(mvpText).forEach((sourceRow) => {
+            const sourceName = textOf(sourceRow, "Player Name", "name", "player_name");
+            const normalized = normalizeName(sourceName);
+            const ids = seasonIdsByName.get(normalized) ?? globalIdsByName.get(normalized);
+            if (!ids || ids.size !== 1) return;
+            const id = Array.from(ids)[0];
+            const batting = numberOf(sourceRow, "Batting"); const bowling = numberOf(sourceRow, "Bowling"); const fielding = numberOf(sourceRow, "Fielding");
+            next.MVP.push({ player_id: id, name: seasonNamesById.get(id) ?? globalCanonicalNameById.get(id) ?? sourceName, matches: numberOf(sourceRow, "Matches"), batting, bowling, fielding, total: numberOf(sourceRow, "Total") || batting + bowling + fielding, __season: seasonInfo.season });
+          });
+        }
+        if (active) setData(next);
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : "We couldn’t load the statistics just now. Please refresh the page and try again.");
+      } finally { if (active) setLoading(false); }
+    }
+    void load();
+    return () => { active = false; };
+  }, []);
+
+  const allSeasonRows = useMemo(() => aggregateRows(data[category], category), [data, category]);
+  const rows = useMemo(() => {
+    const source = season === "all" ? allSeasonRows : data[category].filter((row) => String(row.__season) === season);
+    const normalizedSearch = search.trim().toLocaleLowerCase();
+    const filtered = source.filter((row) => {
+      if (!normalizedSearch) return true;
+      const name = textOf(row, "name");
+      return name.toLocaleLowerCase().includes(normalizedSearch);
+    });
+    return [...filtered].sort((a, b) => {
+      const aValue = a[sortKey];
+      const bValue = b[sortKey];
+      let compare = 0;
+      // Excel sheets can contain numeric-looking values stored as text. Sort based on
+      // the column definition rather than JavaScript's runtime value type.
+      const sortColumn = COLUMNS[category].find((column) => column.key === sortKey);
+      if (sortColumn?.numeric) {
+        compare = numberOf(a, sortKey) - numberOf(b, sortKey);
+      } else {
+        compare = String(aValue ?? "").localeCompare(String(bValue ?? ""), undefined, { numeric: true, sensitivity: "base" });
+      }
+      return sortDirection === "desc" ? -compare : compare;
+    });
+  }, [allSeasonRows, category, data, search, season, sortDirection, sortKey]);
+
+  const columns = COLUMNS[category].filter((column) => {
+    // Do not render columns that have no meaningful data in the current view.
+    const currentRows = season === "all" ? allSeasonRows : data[category].filter((row) => String(row.__season) === season);
+    return currentRows.some((row) => row[column.key] !== undefined && row[column.key] !== null && String(row[column.key]).trim() !== "");
+  });
+  const playerCount = rows.length;
+  const currentSeasonLabel = season === "all" ? "All Seasons" : `Season ${season}`;
+  const leaders = useMemo(() => {
+    const mainKey = category === "Batting" ? "total_runs" : category === "Bowling" ? "total_wickets" : category === "Fielding" ? "total_dismissal" : "total";
+    return [...(season === "all" ? allSeasonRows : data[category].filter((row) => String(row.__season) === season))]
+      .sort((a, b) => numberOf(b, mainKey) - numberOf(a, mainKey)).slice(0, 3);
+  }, [allSeasonRows, category, data, season]);
+
+  useEffect(() => {
+    const defaultSort = category === "Batting" ? "total_runs" : category === "Bowling" ? "total_wickets" : category === "Fielding" ? "total_dismissal" : "total";
+    setSortKey(defaultSort);
+    setSortDirection("desc");
+  }, [category, season]);
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white">
+      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+        <Link href="/tournaments/friendshipcup" className="inline-flex items-center gap-2 rounded-lg border border-orange-400/40 bg-orange-500/10 px-4 py-2.5 text-sm font-extrabold text-orange-300 transition hover:border-orange-300 hover:bg-orange-500/20">
+          <span aria-hidden="true">←</span> Back to Friendship Cup Dashboard
+        </Link>
+      </div>
+      <section className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-orange-500/20 via-slate-950 to-slate-950">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+          <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-400/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-orange-300">
+                <span className="h-2 w-2 rounded-full bg-orange-400" /> Mufaddal Husain Sports
+              </div>
+              <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">Friendship Cup <span className="text-orange-400">Stats</span></h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">Every run, wicket and moment that shaped the tournament. Explore player leaderboards across Friendship Cup seasons.</p>
+            </div>
+            <div className="w-full md:max-w-xs">
+              <label htmlFor="season-select" className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Choose season</label>
+              <select id="season-select" value={season} onChange={(event) => setSeason(event.target.value)} className="w-full rounded-xl border border-white/15 bg-slate-900 px-4 py-3.5 text-base font-semibold text-white outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20">
+                <option value="all">All Seasons · Career totals</option>
+                {SEASONS.map(({ season: seasonNumber }) => <option key={seasonNumber} value={String(seasonNumber)}>Season {seasonNumber}</option>)}
+              </select>
+              <p className="mt-2 text-xs text-slate-500">Historical seasons: 1–6 · Season 7 in progress</p>
+            </div>
+          </div>
+          <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { label: "Seasons", value: "06", icon: "◷" },
+              { label: "Current view", value: currentSeasonLabel, icon: "⌁" },
+              { label: "Players listed", value: loading ? "…" : playerCount.toLocaleString("en-IN"), icon: "♙" },
+            ].map((item) => <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm sm:p-5"><div className="flex items-center justify-between text-sm text-slate-400"><span>{item.label}</span><span className="text-lg text-orange-300">{item.icon}</span></div><div className="mt-3 truncate text-xl font-extrabold sm:text-2xl">{item.value}</div></div>)}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-400">The record books</p>
+            <h2 className="mt-2 text-2xl font-black sm:text-3xl">Player Leaderboards</h2>
+          </div>
+          <div className="relative w-full sm:max-w-sm">
+            <label htmlFor="player-search" className="sr-only">Search player</label>
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
+            <input id="player-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search player…" className="w-full rounded-xl border border-white/10 bg-slate-900 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-orange-400" />
+          </div>
+        </div>
+
+        <div className="mt-7 grid grid-cols-2 gap-2 rounded-2xl sm:grid-cols-4 border border-white/10 bg-slate-900/80 p-2">
+          {CATEGORIES.map((item, index) => {
+            const active = category === item;
+            const icons = ["🏏", "🔴", "🧤", "🏆"];
+            return <button key={item} onClick={() => setCategory(item)} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3.5 text-sm font-bold transition sm:text-base ${active ? "bg-orange-500 text-white shadow-lg shadow-orange-950/30" : "text-slate-400 hover:bg-white/5 hover:text-white"}`} aria-pressed={active}><span>{icons[index]}</span>{item}</button>;
+          })}
+        </div>
+
+        {leaders.length > 0 && !loading && (
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {leaders.map((leader, index) => {
+              const name = textOf(leader, "name");
+              const key = category === "Batting" ? "total_runs" : category === "Bowling" ? "total_wickets" : category === "Fielding" ? "total_dismissal" : "total";
+              const label = category === "Batting" ? "Runs" : category === "Bowling" ? "Wickets" : category === "Fielding" ? "Dismissals" : "MVP Points";
+              return <div key={`${name}-${index}`} className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 ${index === 0 ? "border-orange-400/40 bg-gradient-to-br from-orange-500/15 to-slate-900" : "border-white/10 bg-slate-900/70"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-widest text-slate-400">{index === 0 ? "Leading player" : `Rank ${index + 1}`}</span><span className="text-xl">{["🥇", "🥈", "🥉"][index]}</span></div><div className="mt-3 truncate text-lg font-extrabold">{name}</div><div className="mt-4 flex items-baseline gap-2"><span className="text-3xl font-black text-orange-300">{formatValue(leader[key])}</span><span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</span></div></div>;
+            })}
+          </div>
+        )}
+
+        <div className="mt-5 overflow-visible rounded-2xl border border-white/10 bg-slate-900/60 shadow-2xl shadow-black/10">
+          <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div><h3 className="font-bold">{category} leaderboard</h3><p className="mt-1 text-xs text-slate-400">{currentSeasonLabel} · {playerCount.toLocaleString("en-IN")} players</p></div>
+            <div className="text-xs text-slate-500">Select a column heading to sort</div>
+          </div>
+          {error ? <div className="p-10 text-center text-sm text-red-300">{error}</div> : loading ? <div className="p-12 text-center"><div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-orange-400"/><p className="mt-4 text-sm text-slate-400">Loading season statistics…</p></div> : rows.length === 0 ? <div className="p-12 text-center"><p className="font-bold text-slate-200">No players found</p><p className="mt-2 text-sm text-slate-400">Try another search or season.</p></div> : (
+            <div className="max-h-[70vh] overflow-auto rounded-2xl">
+              <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                <thead className="sticky top-0 z-20 bg-slate-900 text-xs uppercase tracking-wider text-slate-400"><tr><th className="sticky left-0 top-0 z-30 bg-slate-900 px-4 py-3.5 font-bold sm:px-5">#</th>{columns.map((column) => <th key={column.key} className={`sticky top-0 z-20 bg-slate-900 whitespace-nowrap px-4 py-3.5 font-bold ${column.hideOnSmall ? "hidden md:table-cell" : ""}`}><button onClick={() => { if (sortKey === column.key) setSortDirection((direction) => direction === "desc" ? "asc" : "desc"); else { setSortKey(column.key); setSortDirection("desc"); } }} className="inline-flex items-center gap-1.5 transition hover:text-orange-300">{column.label}<span className={sortKey === column.key ? "text-orange-400" : "text-slate-600"}>{sortKey === column.key ? (sortDirection === "desc" ? "↓" : "↑") : "↕"}</span></button></th>)}</tr></thead>
+                <tbody className="divide-y divide-white/[0.06]">{rows.map((row, index) => <tr key={`${playerKey(row)}-${row.__season ?? "all"}-${index}`} className="transition hover:bg-white/[0.035]"><td className="sticky left-0 bg-slate-900 px-4 py-3.5 font-bold text-slate-500 sm:px-5">{index + 1}</td>{columns.map((column) => { const isPlayer = column.key === "name"; return <td key={column.key} className={`whitespace-nowrap px-4 py-3.5 ${column.hideOnSmall ? "hidden md:table-cell" : ""} ${isPlayer ? "font-bold text-white" : column.numeric ? "font-semibold tabular-nums text-slate-200" : "text-slate-400"}`}>{row[column.key] === undefined || row[column.key] === null || String(row[column.key]).trim() === "" ? "" : formatValue(row[column.key])}</td>; })}</tr>)}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <p className="mt-6 text-center text-xs leading-6 text-slate-500">Friendship Cup · Celebrating the players, teams and moments behind every season.</p>
+      </section>
+    </main>
+  );
+}

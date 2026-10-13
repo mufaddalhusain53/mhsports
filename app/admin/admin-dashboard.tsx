@@ -27,6 +27,13 @@ export default function AdminDashboard({ responses }: Props) {
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("All");
   const [jamiat, setJamiat] = useState("All");
+  const [refreshBusy, setRefreshBusy] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState("");
+  const [statsSeason, setStatsSeason] = useState("1");
+  const [statsCategory, setStatsCategory] = useState("batting");
+  const [statsFile, setStatsFile] = useState<File | null>(null);
+  const [statsBusy, setStatsBusy] = useState(false);
+  const [statsStatus, setStatsStatus] = useState("");
 
   const cities = useMemo(() => {
     return Array.from(
@@ -116,12 +123,26 @@ export default function AdminDashboard({ responses }: Props) {
 }
 
   async function logout() {
-    await fetch("/api/admin/logout", {
-      method: "POST",
-    });
-
+    await fetch("/api/admin/logout", { method: "POST" });
     window.location.href = "/admin";
   }
+
+  async function refreshFriendshipCupPoints() {
+    setRefreshBusy(true);
+    setRefreshStatus("");
+    try {
+      const response = await fetch("/api/points-table/refresh", { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Points table refresh failed.");
+      setRefreshStatus("Points table refreshed successfully.");
+    } catch (error) {
+      setRefreshStatus(error instanceof Error ? error.message : "Points table refresh failed.");
+    } finally {
+      setRefreshBusy(false);
+    }
+  }
+
+
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -200,26 +221,55 @@ export default function AdminDashboard({ responses }: Props) {
         </div>
 
         {/* COMING SOON */}
-        {tournament !== "mohalla" && (
-          <div className="mt-6 rounded-2xl bg-white p-12 text-center shadow-sm">
-
-            <div className="text-5xl">
-              🏏
+        {tournament === "friendshipcup" && (
+          <section className="mt-6 space-y-5">
+            <div className="rounded-2xl bg-white p-6 shadow-sm">
+              <p className="text-sm font-bold uppercase tracking-wider text-orange-500">Friendship Cup</p>
+              <h2 className="mt-1 text-2xl font-black text-slate-900">Tournament Admin</h2>
+              <p className="mt-2 text-sm text-slate-500">Refresh the Season 7 points table.</p>
             </div>
+            <div className="grid gap-5 md:grid-cols-1">
+              <div className="rounded-2xl bg-white p-6 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900">Refresh Points Table</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">Fetch the latest Friendship Cup standings from the configured CricHeroes sync.</p>
+                <button type="button" onClick={refreshFriendshipCupPoints} disabled={refreshBusy} className="mt-5 rounded-xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600 disabled:opacity-60">
+                  {refreshBusy ? "Refreshing…" : "↻ Refresh Points Table"}
+                </button>
+                {refreshStatus && <p role="status" className="mt-3 text-sm text-slate-600">{refreshStatus}</p>}
+              </div>
+              <div className="rounded-2xl bg-white p-6 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900">Season Stats CSV Upload</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">Upload raw Batting, Bowling, Fielding or MVP leaderboard CSVs for Seasons 1–7. Re-uploading a category replaces its previous file for that season.</p>
+                <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (!statsFile) { setStatsStatus("Choose a CSV file first."); return; }
+                  setStatsBusy(true); setStatsStatus("");
+                  try {
+                    const body = new FormData(); body.set("season", statsSeason); body.set("category", statsCategory); body.set("file", statsFile);
+                    const response = await fetch("/api/fc-season-stats", { method: "POST", body });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error ?? "Upload failed.");
+                    setStatsStatus(`Uploaded ${result.fileName} for Season ${result.season} · ${result.category}.`); setStatsFile(null);
+                    const input = document.getElementById("fc-stats-file") as HTMLInputElement | null; if (input) input.value = "";
+                  } catch (error) { setStatsStatus(error instanceof Error ? error.message : "Upload failed."); }
+                  finally { setStatsBusy(false); }
+                }}>
+                  <label className="text-sm font-bold text-slate-700">Season<select value={statsSeason} onChange={(event) => setStatsSeason(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3"><option value="1">Season 1</option><option value="2">Season 2</option><option value="3">Season 3</option><option value="4">Season 4</option><option value="5">Season 5</option><option value="6">Season 6</option><option value="7">Season 7</option></select></label>
+                  <label className="text-sm font-bold text-slate-700">Leaderboard type<select value={statsCategory} onChange={(event) => setStatsCategory(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3"><option value="batting">Batting</option><option value="bowling">Bowling</option><option value="fielding">Fielding</option><option value="mvp">MVP</option></select></label>
+                  <label className="text-sm font-bold text-slate-700 sm:col-span-2">Raw CSV file<input id="fc-stats-file" type="file" accept=".csv,text/csv" onChange={(event) => setStatsFile(event.target.files?.[0] ?? null)} className="mt-2 block w-full rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
+                  <div className="sm:col-span-2"><button disabled={statsBusy || !statsFile} type="submit" className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{statsBusy ? "Uploading…" : "Upload Season CSV"}</button>{statsStatus && <p role="status" className="mt-3 text-sm text-slate-600">{statsStatus}</p>}</div>
+                </form>
+              </div>
+            </div>
+          </section>
+        )}
 
-            <h2 className="mt-5 text-2xl font-black text-slate-900">
-              {tournament === "friendshipcup"
-                ? "Friendship Cup"
-                : "Quad Clash 100"}
-            </h2>
-
-            <p className="mt-2 text-slate-500">
-              Registration management will be available here soon.
-            </p>
-
-            <span className="mt-5 inline-block rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600">
-              Coming Soon
-            </span>
+        {tournament === "quadclash100" && (
+          <div className="mt-6 rounded-2xl bg-white p-12 text-center shadow-sm">
+            <div className="text-5xl">🏏</div>
+            <h2 className="mt-5 text-2xl font-black text-slate-900">Quad Clash 100</h2>
+            <p className="mt-2 text-slate-500">Registration management will be available here soon.</p>
+            <span className="mt-5 inline-block rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600">Coming Soon</span>
           </div>
         )}
 

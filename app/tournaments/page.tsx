@@ -7,7 +7,7 @@ const tournaments = [
     icon: "🏏",
     description:
       "Our flagship grassroots cricket tournament focused on friendship, competition and community.",
-    status: "Coming Soon",
+    status: "Explore Dashboard",
   },
   {
     name: "Quad Clash 100",
@@ -77,7 +77,7 @@ export default function TournamentsPage() {
 
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-bold ${
-                    tournament.status === "Coming Soon"
+                    tournament.status === "Coming Soon" || tournament.status === "Stats Available"
                       ? "bg-green-100 text-green-700"
                       : tournament.status === "Survey Open"
                       ? "bg-orange-100 text-orange-700"
