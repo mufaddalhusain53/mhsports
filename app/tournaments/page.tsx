@@ -7,15 +7,13 @@ const tournaments = [
     icon: "🏏",
     description:
       "Our flagship grassroots cricket tournament focused on friendship, competition and community.",
-    status: "Explore Dashboard",
   },
   {
-    name: "Quad Clash 100",
+    name: "QuadClash 100",
     slug: "/tournaments/quadclash100",
     icon: "⚡",
     description:
       "A fast-paced 100-ball cricket tournament built around excitement and competition.",
-    status: "Coming Soon",
   },
   {
     name: "Inter Mohalla Tournament",
@@ -23,7 +21,6 @@ const tournaments = [
     icon: "🏘️",
     description:
       "A new community cricket initiative bringing Mohallas together through the spirit of sport.",
-    status: "Survey Open",
     featured: true,
   },
 ];
@@ -73,25 +70,6 @@ export default function TournamentsPage() {
                 {tournament.description}
               </p>
 
-              <div className="mt-6 flex items-center justify-between">
-
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${
-                    tournament.status === "Coming Soon" || tournament.status === "Stats Available"
-                      ? "bg-green-100 text-green-700"
-                      : tournament.status === "Survey Open"
-                      ? "bg-orange-100 text-orange-700"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {tournament.status}
-                </span>
-
-                <span className="font-bold text-orange-600">
-                  Explore →
-                </span>
-
-              </div>
 
             </Link>
 

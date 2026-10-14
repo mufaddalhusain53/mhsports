@@ -25,7 +25,6 @@ export default function FriendshipCupPage() {
               <div className="text-4xl" aria-hidden="true">{item.icon}</div>
               <h2 className="mt-5 text-xl font-extrabold">{item.title}</h2>
               <p className="mt-2 min-h-14 text-sm leading-6 text-slate-400">{item.description}</p>
-              <span className="mt-5 inline-flex font-bold text-orange-400 group-hover:text-orange-300">Explore <span className="ml-2">→</span></span>
             </Link>
           ))}
         </div>

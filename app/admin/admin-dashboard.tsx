@@ -203,7 +203,7 @@ export default function AdminDashboard({ responses }: Props) {
                   : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              Quad Clash 100
+              QuadClash 100
             </button>
 
             <button
@@ -265,12 +265,10 @@ export default function AdminDashboard({ responses }: Props) {
         )}
 
         {tournament === "quadclash100" && (
-          <div className="mt-6 rounded-2xl bg-white p-12 text-center shadow-sm">
-            <div className="text-5xl">🏏</div>
-            <h2 className="mt-5 text-2xl font-black text-slate-900">Quad Clash 100</h2>
-            <p className="mt-2 text-slate-500">Registration management will be available here soon.</p>
-            <span className="mt-5 inline-block rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600">Coming Soon</span>
-          </div>
+          <section className="mt-6 space-y-5">
+            <div className="rounded-2xl bg-white p-6 shadow-sm"><p className="text-sm font-bold uppercase tracking-wider text-orange-500">QuadClash 100</p><h2 className="mt-1 text-2xl font-black text-slate-900">Tournament Admin</h2><p className="mt-2 text-sm text-slate-500">Upload Season 1 or Season 2 stats CSVs. A category upload replaces only that season/category.</p></div>
+            <div className="rounded-2xl bg-white p-6 shadow-sm"><h3 className="text-lg font-black text-slate-900">Season Stats CSV Upload</h3><p className="mt-2 text-sm leading-6 text-slate-500">Upload Batting, Bowling, Fielding or MVP leaderboard CSV files. Bulk uploads can be added later; this form supports individual category uploads.</p><form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={async(event)=>{event.preventDefault();const season=(document.getElementById("qc-season") as HTMLSelectElement)?.value??"1";const category=(document.getElementById("qc-category") as HTMLSelectElement)?.value??"batting";const input=document.getElementById("qc-stats-file") as HTMLInputElement|null;const file=input?.files?.[0];const status=document.getElementById("qc-upload-status");if(!file){if(status)status.textContent="Choose a CSV file first.";return;}if(status)status.textContent="Uploading…";try{const body=new FormData();body.set("season",season);body.set("category",category);body.set("file",file);const response=await fetch("/api/quadclash100-stats",{method:"POST",body});const result=await response.json();if(!response.ok)throw new Error(result.error??"Upload failed.");if(status)status.textContent=`Uploaded ${result.fileName} for Season ${result.season} · ${result.category}.`;if(input)input.value="";}catch(error){if(status)status.textContent=error instanceof Error?error.message:"Upload failed.";}}}><label className="text-sm font-bold text-slate-700">Season<select id="qc-season" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3"><option value="1">Season 1</option><option value="2">Season 2</option></select></label><label className="text-sm font-bold text-slate-700">Leaderboard type<select id="qc-category" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3"><option value="batting">Batting</option><option value="bowling">Bowling</option><option value="fielding">Fielding</option><option value="mvp">MVP</option></select></label><label className="text-sm font-bold text-slate-700 sm:col-span-2">Raw CSV file<input id="qc-stats-file" type="file" accept=".csv,text/csv" className="mt-2 block w-full rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label><div className="sm:col-span-2"><button type="submit" className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white">Upload Season CSV</button><p id="qc-upload-status" role="status" className="mt-3 break-words text-sm text-slate-600" /></div></form></div>
+          </section>
         )}
 
         {/* MOHALLA */}

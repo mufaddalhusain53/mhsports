@@ -133,7 +133,7 @@ export default function AboutPage() {
           />
 
           <TournamentCard
-            title="Quad Clash 100"
+            title="QuadClash 100"
             description="A fast-paced competitive cricket format designed to test teams under pressure."
           />
 

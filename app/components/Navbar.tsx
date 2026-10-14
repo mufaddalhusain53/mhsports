@@ -11,12 +11,14 @@ const exploreLinks = [
 
 const tournamentLinks = [
   { href: "/tournaments/friendshipcup", label: "Friendship Cup" },
-  { href: "/tournaments/quadclash100", label: "Quad Clash 100" },
+  { href: "/tournaments/quadclash100", label: "QuadClash 100" },
   { href: "/tournaments/inter-mohalla", label: "Inter-Mohalla" },
 ];
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [friendshipOpen, setFriendshipOpen] = useState(false);
+  const [quadClashOpen, setQuadClashOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -93,11 +95,32 @@ export default function Navbar() {
                 TOURNAMENTS
               </div>
               <div className="flex flex-col">
-                {tournamentLinks.map((item) => (
-                  <Link key={item.href} href={item.href} onClick={closeMenu} className="rounded-lg px-4 py-4 text-base font-semibold transition hover:bg-[#e2eefb] hover:text-[#124b83]">
-                    {item.label}
-                  </Link>
-                ))}
+                <button type="button" aria-expanded={friendshipOpen} onClick={() => setFriendshipOpen((value) => !value)} className="flex w-full items-center justify-between rounded-lg px-4 py-4 text-left text-base font-semibold transition hover:bg-[#e2eefb] hover:text-[#124b83]">
+                  <span>Friendship Cup</span><span aria-hidden="true" className="text-sm">{friendshipOpen ? "−" : "+"}</span>
+                </button>
+                {friendshipOpen && <div className="mb-2 ml-4 flex flex-col border-l-2 border-[#c7dff5] pl-3">
+                  {[
+                    { href: "/tournaments/friendshipcup/fcstats", label: "Player Statistics" },
+                    { href: "/tournaments/friendshipcup/fcschedule", label: "Season Schedule" },
+                    { href: "/tournaments/friendshipcup/fcpointstable", label: "Points Table" },
+                    { href: "/tournaments/friendshipcup/fchalloffame", label: "Hall Of Fame" },
+                  ].map((item) => <Link key={item.href} href={item.href} onClick={closeMenu} className="rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-[#e2eefb] hover:text-[#124b83]">{item.label}</Link>)}
+                </div>}
+                <button type="button" aria-expanded={quadClashOpen} onClick={() => setQuadClashOpen((value) => !value)} className="flex w-full items-center justify-between rounded-lg px-4 py-4 text-left text-base font-semibold transition hover:bg-[#e2eefb] hover:text-[#124b83]">
+                  <span>QuadClash 100</span><span aria-hidden="true" className="text-sm">{quadClashOpen ? "−" : "+"}</span>
+                </button>
+                {quadClashOpen && <div className="mb-2 ml-4 flex flex-col border-l-2 border-[#c7dff5] pl-3">
+                  {[
+                    { href: "/tournaments/quadclash100/stats", label: "Player Statistics" },
+                    { href: "/tournaments/quadclash100/points-table", label: "Points Table" },
+                    { href: "/tournaments/quadclash100/teams", label: "Teams" },
+                    { href: "/tournaments/quadclash100/season-2", label: "Season 2 Dates" },
+                    { href: "/tournaments/quadclash100/registration", label: "Season 2 Registration" },
+                    { href: "/tournaments/quadclash100/sponsors", label: "Sponsors" },
+                    { href: "/tournaments/quadclash100/hall-of-fame", label: "Hall of Fame" },
+                  ].map((item) => <Link key={item.href} href={item.href} onClick={closeMenu} className="rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-[#e2eefb] hover:text-[#124b83]">{item.label}</Link>)}
+                </div>}
+                <Link href="/tournaments/inter-mohalla" onClick={closeMenu} className="rounded-lg px-4 py-4 text-base font-semibold transition hover:bg-[#e2eefb] hover:text-[#124b83]">Inter-Mohalla</Link>
               </div>
             </nav>
 
