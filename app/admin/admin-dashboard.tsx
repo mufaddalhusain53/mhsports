@@ -426,7 +426,7 @@ export default function AdminDashboard({ responses }: Props) {
 
               <div className="overflow-x-auto">
 
-                <div className="w-full max-w-full overflow-x-auto"><table className="min-w-[1100px] w-full text-left text-sm">
+                <table className="min-w-[1100px] w-full text-left text-sm">
 
                   <thead className="border-b border-slate-200 bg-slate-50">
                     <tr>
@@ -545,7 +545,7 @@ export default function AdminDashboard({ responses }: Props) {
                     )}
 
                   </tbody>
-                </table></div>
+                </table>
               </div>
 
               <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-xs text-slate-500">

@@ -365,12 +365,33 @@ export default function FriendshipCupStats() {
             <div className="text-xs text-slate-500">Select a column heading to sort</div>
           </div>
           {error ? <div className="p-10 text-center text-sm text-red-300">{error}</div> : loading ? <div className="p-12 text-center"><div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-orange-400"/><p className="mt-4 text-sm text-slate-400">Loading season statistics…</p></div> : rows.length === 0 ? <div className="p-12 text-center"><p className="font-bold text-slate-200">No players found</p><p className="mt-2 text-sm text-slate-400">Try another search or season.</p></div> : (
-            <div className="max-h-[70vh] w-full max-w-full overflow-x-auto overflow-y-auto rounded-2xl">
-              <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-                <thead className="sticky top-0 z-20 bg-slate-900 text-xs uppercase tracking-wider text-slate-400"><tr><th className="sticky left-0 top-0 z-30 bg-slate-900 px-4 py-3.5 font-bold sm:px-5">#</th>{columns.map((column) => <th key={column.key} className={`sticky top-0 z-20 bg-slate-900 whitespace-nowrap px-4 py-3.5 font-bold ${column.hideOnSmall ? "hidden md:table-cell" : ""}`}><button onClick={() => { if (sortKey === column.key) setSortDirection((direction) => direction === "desc" ? "asc" : "desc"); else { setSortKey(column.key); setSortDirection("desc"); } }} className="inline-flex items-center gap-1.5 transition hover:text-orange-300">{column.label}<span className={sortKey === column.key ? "text-orange-400" : "text-slate-600"}>{sortKey === column.key ? (sortDirection === "desc" ? "↓" : "↑") : "↕"}</span></button></th>)}</tr></thead>
-                <tbody className="divide-y divide-white/[0.06]">{rows.map((row, index) => <tr key={`${playerKey(row)}-${row.__season ?? "all"}-${index}`} className="transition hover:bg-white/[0.035]"><td className="sticky left-0 bg-slate-900 px-4 py-3.5 font-bold text-slate-500 sm:px-5">{index + 1}</td>{columns.map((column) => { const isPlayer = column.key === "name"; return <td key={column.key} className={`whitespace-nowrap px-4 py-3.5 ${column.hideOnSmall ? "hidden md:table-cell" : ""} ${isPlayer ? "font-bold text-white" : column.numeric ? "font-semibold tabular-nums text-slate-200" : "text-slate-400"}`}>{row[column.key] === undefined || row[column.key] === null || String(row[column.key]).trim() === "" ? "" : formatValue(row[column.key])}</td>; })}</tr>)}</tbody>
-              </table>
-            </div>
+            <>
+              {/* Mobile: compact player cards prevent page-level horizontal scrolling and keep names readable. */}
+              <div className="divide-y divide-white/[0.06] md:hidden">
+                {rows.map((row, index) => {
+                  const playerName = textOf(row, "name", "Player Name", "player_name") || "Unknown player";
+                  const visibleColumns = columns.filter((column) => column.key !== "name" && !column.hideOnSmall).slice(0, 3);
+                  return <div key={`${playerKey(row)}-${row.__season ?? "all"}-${index}`} className="px-4 py-3.5">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="w-7 shrink-0 pt-0.5 text-sm font-bold text-slate-500">{index + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="break-words text-sm font-bold leading-5 text-white">{playerName}</div>
+                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                          {visibleColumns.map((column) => <div key={column.key} className="min-w-0"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{column.label}</div><div className="mt-0.5 break-words text-sm font-semibold tabular-nums text-slate-200">{row[column.key] === undefined || row[column.key] === null || String(row[column.key]).trim() === "" ? "—" : formatValue(row[column.key])}</div></div>)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>;
+                })}
+              </div>
+              {/* Desktop/tablet: preserve sortable table layout. */}
+              <div className="hidden max-h-[70vh] overflow-auto rounded-2xl md:block">
+                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+                  <thead className="sticky top-0 z-20 bg-slate-900 text-xs uppercase tracking-wider text-slate-400"><tr><th className="sticky left-0 top-0 z-30 bg-slate-900 px-4 py-3.5 font-bold sm:px-5">#</th>{columns.map((column) => <th key={column.key} className={`sticky top-0 z-20 bg-slate-900 whitespace-nowrap px-4 py-3.5 font-bold`}><button onClick={() => { if (sortKey === column.key) setSortDirection((direction) => direction === "desc" ? "asc" : "desc"); else { setSortKey(column.key); setSortDirection("desc"); } }} className="inline-flex items-center gap-1.5 transition hover:text-orange-300">{column.label}<span className={sortKey === column.key ? "text-orange-400" : "text-slate-600"}>{sortKey === column.key ? (sortDirection === "desc" ? "↓" : "↑") : "↕"}</span></button></th>)}</tr></thead>
+                  <tbody className="divide-y divide-white/[0.06]">{rows.map((row, index) => <tr key={`${playerKey(row)}-${row.__season ?? "all"}-${index}`} className="transition hover:bg-white/[0.035]"><td className="sticky left-0 bg-slate-900 px-4 py-3.5 font-bold text-slate-500 sm:px-5">{index + 1}</td>{columns.map((column) => { const isPlayer = column.key === "name"; return <td key={column.key} className={`whitespace-nowrap px-4 py-3.5 ${isPlayer ? "font-bold text-white" : column.numeric ? "font-semibold tabular-nums text-slate-200" : "text-slate-400"}`}>{row[column.key] === undefined || row[column.key] === null || String(row[column.key]).trim() === "" ? "" : formatValue(row[column.key])}</td>; })}</tr>)}</tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
         <p className="mt-6 text-center text-xs leading-6 text-slate-500">Friendship Cup · Celebrating the players, teams and moments behind every season.</p>
