@@ -366,24 +366,65 @@ export default function FriendshipCupStats() {
           </div>
           {error ? <div className="p-10 text-center text-sm text-red-300">{error}</div> : loading ? <div className="p-12 text-center"><div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-orange-400"/><p className="mt-4 text-sm text-slate-400">Loading season statistics…</p></div> : rows.length === 0 ? <div className="p-12 text-center"><p className="font-bold text-slate-200">No players found</p><p className="mt-2 text-sm text-slate-400">Try another search or season.</p></div> : (
             <>
-              {/* Mobile: compact player cards prevent page-level horizontal scrolling and keep names readable. */}
-              <div className="divide-y divide-white/[0.06] md:hidden">
-                {rows.map((row, index) => {
-                  const playerName = textOf(row, "name", "Player Name", "player_name") || "Unknown player";
-                  const visibleColumns = columns.filter((column) => column.key !== "name" && !column.hideOnSmall).slice(0, 3);
-                  return <div key={`${playerKey(row)}-${row.__season ?? "all"}-${index}`} className="px-4 py-3.5">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <span className="w-7 shrink-0 pt-0.5 text-sm font-bold text-slate-500">{index + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="break-words text-sm font-bold leading-5 text-white">{playerName}</div>
-                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
-                          {visibleColumns.map((column) => <div key={column.key} className="min-w-0"><div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{column.label}</div><div className="mt-0.5 break-words text-sm font-semibold tabular-nums text-slate-200">{row[column.key] === undefined || row[column.key] === null || String(row[column.key]).trim() === "" ? "—" : formatValue(row[column.key])}</div></div>)}
-                        </div>
-                      </div>
+             
+{/* Mobile: show every statistic without horizontal scrolling */}
+<div className="divide-y divide-white/[0.06] md:hidden">
+  {rows.map((row, index) => {
+    const playerName =
+      textOf(row, "name", "Player Name", "player_name") ||
+      "Unknown player";
+
+    // Include every column except name, which is displayed separately.
+    const visibleColumns = columns.filter(
+      (column) => column.key !== "name"
+    );
+
+    return (
+      <div
+        key={`${playerKey(row)}-${row.__season ?? "all"}-${index}`}
+        className="px-4 py-4"
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          {/* Rank */}
+          <span className="w-7 shrink-0 pt-0.5 text-sm font-bold text-slate-500">
+            {index + 1}
+          </span>
+
+          <div className="min-w-0 flex-1">
+            {/* Full player name */}
+            <div className="break-words text-sm font-bold leading-5 text-white">
+              {playerName}
+            </div>
+
+            {/* All statistics, arranged in two columns */}
+            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+              {visibleColumns.map((column) => {
+                const value = row[column.key];
+                const isEmpty =
+                  value === undefined ||
+                  value === null ||
+                  String(value).trim() === "";
+
+                return (
+                  <div key={column.key} className="min-w-0">
+                    <div className="break-words text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      {column.label}
                     </div>
-                  </div>;
-                })}
-              </div>
+
+                    <div className="mt-1 break-words text-sm font-semibold tabular-nums text-slate-200">
+                      {isEmpty ? "—" : formatValue(value)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  })}
+</div>
+
               {/* Desktop/tablet: preserve sortable table layout. */}
               <div className="hidden max-h-[70vh] overflow-auto rounded-2xl md:block">
                 <table className="w-full min-w-[760px] border-collapse text-left text-sm">
