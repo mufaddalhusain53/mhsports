@@ -1,11 +1,11 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 export default function InterMohallaTournamentPage() {
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen site-page-surface">
 
       {/* HERO */}
-      <section className="relative overflow-hidden bg-slate-950">
+      <section className="relative overflow-hidden bg-slate-50">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(249,115,22,0.18),transparent_35%)]" />
         <div className="absolute -bottom-32 -right-32 h-80 w-80 rounded-full bg-orange-500/10 blur-3xl" />
 
@@ -22,13 +22,13 @@ export default function InterMohallaTournamentPage() {
               Hashemi Mohalla (Umoor Sehat) Presents
             </p>
 
-            <h1 className="mt-4 text-5xl font-black leading-[0.95] tracking-tight text-white sm:text-6xl md:text-7xl">
+            <h1 className="mt-4 text-5xl font-black leading-[0.95] tracking-tight text-slate-950 sm:text-6xl md:text-7xl">
               Inter Mohalla
               <br />
               Tournament
             </h1>
 
-            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300 sm:text-xl">
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-600 sm:text-xl">
               A leather cricket championship bringing Mohallas together
               through sport, competition and community.
             </p>
@@ -43,7 +43,7 @@ export default function InterMohallaTournamentPage() {
 
               <a
                 href="#about"
-                className="inline-flex h-13 items-center justify-center rounded-xl border border-white/15 bg-white/5 px-7 py-3.5 text-base font-bold text-white transition hover:bg-white/10"
+                className="inline-flex h-13 items-center justify-center rounded-xl border border-slate-200 bg-white px-7 py-3.5 text-base font-bold text-slate-950 shadow-sm transition hover:bg-slate-100"
               >
                 Explore Tournament
               </a>
@@ -199,7 +199,7 @@ export default function InterMohallaTournamentPage() {
       {/* WHO CAN PARTICIPATE */}
       <section className="mx-auto max-w-7xl px-6 py-16 sm:px-8 md:py-20 lg:px-10">
 
-        <div className="rounded-3xl bg-slate-950 px-6 py-10 sm:px-10 md:px-14 md:py-14">
+        <div className="rounded-3xl border border-slate-200 bg-white px-6 py-10 shadow-sm sm:px-10 md:px-14 md:py-14">
 
           <div className="grid gap-10 lg:grid-cols-[1fr_auto] lg:items-center">
 
@@ -208,17 +208,17 @@ export default function InterMohallaTournamentPage() {
                 Calling All Players
               </p>
 
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
                 Want to represent your Mohalla?
               </h2>
 
-              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300">
+              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">
                 We are identifying players from Mumbai &amp; Marol Jamiat
                 who regularly play leather cricket and may be interested
                 in participating in the tournament.
               </p>
 
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
                 Complete the player survey to register your interest.
                 Submission of the survey does not guarantee selection.
               </p>

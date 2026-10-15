@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -78,7 +78,7 @@ export default function MohallaSurveyPage() {
 
   if (submitted) {
     return (
-      <main className="min-h-[calc(100vh-112px)] bg-slate-50 px-4 py-12 sm:px-6 md:px-10">
+      <main className="min-h-[calc(100vh-112px)] site-page-surface px-4 py-12 sm:px-6 md:px-10">
         <div className="mx-auto max-w-2xl">
           <div className="rounded-2xl bg-white p-8 text-center shadow-sm sm:p-12">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-4xl">
@@ -104,7 +104,7 @@ export default function MohallaSurveyPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 md:px-10 md:py-12">
+    <main className="min-h-screen site-page-surface px-4 py-8 sm:px-6 md:px-10 md:py-12">
       <div className="mx-auto max-w-3xl">
 
         {/* Hashemi Logo */}

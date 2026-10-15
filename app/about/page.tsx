@@ -1,9 +1,9 @@
-export default function AboutPage() {
+﻿export default function AboutPage() {
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen site-page-surface">
 
       {/* Hero */}
-      <section className="bg-slate-950">
+      <section className="bg-slate-50">
         <div className="mx-auto max-w-7xl px-6 py-20 sm:px-8 md:py-24 lg:px-10">
           <div className="max-w-3xl">
 
@@ -11,13 +11,13 @@ export default function AboutPage() {
               About Us
             </p>
 
-            <h1 className="mt-4 text-5xl font-black tracking-tight text-white sm:text-6xl">
+            <h1 className="mt-4 text-5xl font-black tracking-tight text-slate-950 sm:text-6xl">
               Mufaddal Husain
               <br />
               Sports
             </h1>
 
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
               Building champions. Creating communities.
             </p>
 
@@ -147,15 +147,15 @@ export default function AboutPage() {
 
       {/* Closing */}
       <section className="px-6 pb-16 sm:px-8 md:pb-20">
-        <div className="mx-auto max-w-5xl rounded-3xl bg-slate-950 px-6 py-12 text-center sm:px-10 md:py-16">
+        <div className="mx-auto max-w-5xl rounded-3xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm sm:px-10 md:py-16">
 
-          <h2 className="text-3xl font-black text-white sm:text-4xl">
+          <h2 className="text-3xl font-black text-slate-950 sm:text-4xl">
             Building Champions.
             <br />
             Creating Communities.
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300">
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600">
             Because every match is more than a game — it is an opportunity
             to connect, compete and create something memorable.
           </p>

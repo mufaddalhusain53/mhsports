@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -293,25 +293,25 @@ export default function FriendshipCupStats() {
   }, [category, season]);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
+    <main className="min-h-screen site-page-surface text-slate-950">
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        <Link href="/tournaments/friendshipcup" className="inline-flex items-center gap-2 rounded-lg border border-orange-400/40 bg-orange-500/10 px-4 py-2.5 text-sm font-extrabold text-orange-300 transition hover:border-orange-300 hover:bg-orange-500/20">
+        <Link href="/tournaments/friendshipcup" className="inline-flex items-center gap-2 rounded-lg border border-orange-400/40 bg-orange-500/10 px-4 py-2.5 text-sm font-extrabold text-orange-600 transition hover:border-orange-300 hover:bg-orange-500/20">
           <span aria-hidden="true">←</span> Back to Friendship Cup
         </Link>
       </div>
-      <section className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-orange-500/20 via-slate-950 to-slate-950">
+      <section className="relative overflow-hidden border-b border-slate-200 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-orange-500/20 via-slate-50 to-slate-50">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
           <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-400/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-orange-300">
+              <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-400/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-orange-600">
                 <span className="h-2 w-2 rounded-full bg-orange-400" /> Mufaddal Husain Sports
               </div>
               <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">Friendship Cup <span className="text-orange-400">Stats</span></h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">Every run, wicket and moment that shaped the tournament. Explore player leaderboards across Friendship Cup seasons.</p>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">Every run, wicket and moment that shaped the tournament. Explore player leaderboards across Friendship Cup seasons.</p>
             </div>
             <div className="w-full md:max-w-xs">
-              <label htmlFor="season-select" className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Choose season</label>
-              <select id="season-select" value={season} onChange={(event) => setSeason(event.target.value)} className="w-full rounded-xl border border-white/15 bg-slate-900 px-4 py-3.5 text-base font-semibold text-white outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20">
+              <label htmlFor="season-select" className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Choose season</label>
+              <select id="season-select" value={season} onChange={(event) => setSeason(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base font-semibold text-slate-950 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20">
                 <option value="all">All Seasons · Career totals</option>
                 {SEASONS.map(({ season: seasonNumber }) => <option key={seasonNumber} value={String(seasonNumber)}>Season {seasonNumber}</option>)}
               </select>
@@ -323,7 +323,7 @@ export default function FriendshipCupStats() {
               { label: "Seasons", value: "07", icon: "◷" },
               { label: "Current view", value: currentSeasonLabel, icon: "⌁" },
               { label: "Players listed", value: loading ? "…" : playerCount.toLocaleString("en-IN"), icon: "♙" },
-            ].map((item) => <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-sm sm:p-5"><div className="flex items-center justify-between text-sm text-slate-400"><span>{item.label}</span><span className="text-lg text-orange-300">{item.icon}</span></div><div className="mt-3 truncate text-xl font-extrabold sm:text-2xl">{item.value}</div></div>)}
+            ].map((item) => <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-4 backdrop-blur-sm sm:p-5"><div className="flex items-center justify-between text-sm text-slate-500"><span>{item.label}</span><span className="text-lg text-orange-600">{item.icon}</span></div><div className="mt-3 truncate text-xl font-extrabold sm:text-2xl">{item.value}</div></div>)}
           </div>
         </div>
       </section>
@@ -336,16 +336,16 @@ export default function FriendshipCupStats() {
           </div>
           <div className="relative w-full sm:max-w-sm">
             <label htmlFor="player-search" className="sr-only">Search player</label>
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
-            <input id="player-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search player…" className="w-full rounded-xl border border-white/10 bg-slate-900 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-orange-400" />
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">⌕</span>
+            <input id="player-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search player…" className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-950 outline-none placeholder:text-slate-500 focus:border-orange-400" />
           </div>
         </div>
 
-        <div className="mt-7 grid grid-cols-2 gap-2 rounded-2xl sm:grid-cols-4 border border-white/10 bg-slate-900/80 p-2">
+        <div className="mt-7 grid grid-cols-2 gap-2 rounded-2xl sm:grid-cols-4 border border-slate-200 bg-white p-2">
           {CATEGORIES.map((item, index) => {
             const active = category === item;
             const icons = ["🏏", "🔴", "🧤", "🏆"];
-            return <button key={item} onClick={() => setCategory(item)} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3.5 text-sm font-bold transition sm:text-base ${active ? "bg-orange-500 text-white shadow-lg shadow-orange-950/30" : "text-slate-400 hover:bg-white/5 hover:text-white"}`} aria-pressed={active}><span>{icons[index]}</span>{item}</button>;
+            return <button key={item} onClick={() => setCategory(item)} className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3.5 text-sm font-bold transition sm:text-base ${active ? "bg-orange-500 text-white shadow-lg shadow-orange-950/30" : "text-slate-500 hover:bg-slate-100 hover:text-slate-950"}`} aria-pressed={active}><span>{icons[index]}</span>{item}</button>;
           })}
         </div>
 
@@ -355,18 +355,18 @@ export default function FriendshipCupStats() {
               const name = textOf(leader, "name");
               const key = category === "Batting" ? "total_runs" : category === "Bowling" ? "total_wickets" : category === "Fielding" ? "total_dismissal" : "total";
               const label = category === "Batting" ? "Runs" : category === "Bowling" ? "Wickets" : category === "Fielding" ? "Dismissals" : "MVP Points";
-              return <div key={`${name}-${index}`} className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 ${index === 0 ? "border-orange-400/40 bg-gradient-to-br from-orange-500/15 to-slate-900" : "border-white/10 bg-slate-900/70"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-widest text-slate-400">{index === 0 ? "Leading player" : `Rank ${index + 1}`}</span><span className="text-xl">{["🥇", "🥈", "🥉"][index]}</span></div><div className="mt-3 truncate text-lg font-extrabold">{name}</div><div className="mt-4 flex items-baseline gap-2"><span className="text-3xl font-black text-orange-300">{formatValue(leader[key])}</span><span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</span></div></div>;
+              return <div key={`${name}-${index}`} className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 ${index === 0 ? "border-orange-400/40 bg-gradient-to-br from-orange-100 to-white" : "border-slate-200 bg-white"}`}><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-widest text-slate-500">{index === 0 ? "Leading player" : `Rank ${index + 1}`}</span><span className="text-xl">{["🥇", "🥈", "🥉"][index]}</span></div><div className="mt-3 truncate text-lg font-extrabold">{name}</div><div className="mt-4 flex items-baseline gap-2"><span className="text-3xl font-black text-orange-600">{formatValue(leader[key])}</span><span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</span></div></div>;
             })}
           </div>
         )}
 
-        <div className="mt-5 overflow-visible rounded-2xl border border-white/10 bg-slate-900/60 shadow-2xl shadow-black/10">
-          <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <div><h3 className="font-bold">{category} leaderboard</h3><p className="mt-1 text-xs text-slate-400">{currentSeasonLabel} · {playerCount.toLocaleString("en-IN")} players</p></div>
+        <div className="mt-5 overflow-visible rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-black/10">
+          <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div><h3 className="font-bold">{category} leaderboard</h3><p className="mt-1 text-xs text-slate-500">{currentSeasonLabel} · {playerCount.toLocaleString("en-IN")} players</p></div>
             <div className="hidden text-xs text-slate-500 md:block">Select a column heading to sort</div>
           </div>
-          {error ? <div className="p-10 text-center text-sm text-red-300">{error}</div> : loading ? <div className="p-12 text-center"><div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-orange-400"/><p className="mt-4 text-sm text-slate-400">Loading season statistics…</p></div> : rows.length === 0 ? <div className="p-12 text-center"><p className="font-bold text-slate-200">No players found</p><p className="mt-2 text-sm text-slate-400">Try another search or season.</p></div> : (
-            <div className="divide-y divide-white/[0.08]">
+          {error ? <div className="p-10 text-center text-sm text-red-700">{error}</div> : loading ? <div className="p-12 text-center"><div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-orange-400"/><p className="mt-4 text-sm text-slate-500">Loading season statistics…</p></div> : rows.length === 0 ? <div className="p-12 text-center"><p className="font-bold text-slate-700">No players found</p><p className="mt-2 text-sm text-slate-500">Try another search or season.</p></div> : (
+            <div className="divide-y divide-slate-200">
               {rows.map((row, index) => {
                 const playerName = textOf(row, "name", "Player Name", "player_name");
                 const mainKey = category === "Batting" ? "total_runs" : category === "Bowling" ? "total_wickets" : category === "Fielding" ? "total_dismissal" : "total";
@@ -374,14 +374,14 @@ export default function FriendshipCupStats() {
                 const rowId = `${playerKey(row)}-${row.__season ?? "all"}-${index}`;
                 const expanded = expandedPlayers.has(rowId);
                 const detailColumns = columns.filter((column) => column.key !== "name" && column.key !== mainKey);
-                return <article key={rowId} className={`px-4 py-4 sm:px-5 ${index === 0 ? "bg-gradient-to-r from-emerald-950/40 to-transparent" : ""}`}>
+                return <article key={rowId} className={`px-4 py-4 sm:px-5 ${index === 0 ? "bg-gradient-to-r from-emerald-50 to-transparent" : ""}`}>
                   <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                     <span className="w-7 shrink-0 text-sm font-bold text-slate-500">{index + 1}</span>
-                    <div className="min-w-0 flex-1"><h4 className="break-words text-base font-extrabold text-white sm:text-lg">{playerName}</h4></div>
-                    <div className="shrink-0 text-right"><div className="text-2xl font-black text-orange-300 sm:text-3xl">{formatValue(row[mainKey] ?? "")}</div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{mainLabel}</div></div>
+                    <div className="min-w-0 flex-1"><h4 className="break-words text-base font-extrabold text-slate-950 sm:text-lg">{playerName}</h4></div>
+                    <div className="shrink-0 text-right"><div className="text-2xl font-black text-orange-600 sm:text-3xl">{formatValue(row[mainKey] ?? "")}</div><div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{mainLabel}</div></div>
                   </div>
-                  <div className="mt-3 flex justify-end"><button type="button" aria-expanded={expanded} onClick={() => setExpandedPlayers((current) => { const next = new Set(current); if (next.has(rowId)) next.delete(rowId); else next.add(rowId); return next; })} className="rounded-lg border border-emerald-300/20 px-3 py-2 text-xs font-bold text-slate-300 transition hover:border-orange-300/50 hover:text-orange-300">Details <span className="ml-1 text-orange-400">{expanded ? "×" : "+"}</span></button></div>
-                  {expanded && <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 sm:grid-cols-3 lg:grid-cols-4">{detailColumns.map((column) => { const value = row[column.key]; const empty = value === undefined || value === null || String(value).trim() === ""; return <div key={column.key} className="min-w-0 rounded-lg bg-white/[0.035] px-3 py-2"><div className="break-words text-[10px] font-semibold uppercase tracking-wider text-slate-500">{column.label}</div><div className="mt-1 break-words text-sm font-bold tabular-nums text-slate-100">{empty ? "—" : formatValue(value)}</div></div>; })}</div>}
+                  <div className="mt-3 flex justify-end"><button type="button" aria-expanded={expanded} onClick={() => setExpandedPlayers((current) => { const next = new Set(current); if (next.has(rowId)) next.delete(rowId); else next.add(rowId); return next; })} className="rounded-lg border border-emerald-300/20 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-orange-300/50 hover:text-orange-600">Details <span className="ml-1 text-orange-400">{expanded ? "×" : "+"}</span></button></div>
+                  {expanded && <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200 pt-4 sm:grid-cols-3 lg:grid-cols-4">{detailColumns.map((column) => { const value = row[column.key]; const empty = value === undefined || value === null || String(value).trim() === ""; return <div key={column.key} className="min-w-0 rounded-lg bg-slate-50 px-3 py-2"><div className="break-words text-[10px] font-semibold uppercase tracking-wider text-slate-500">{column.label}</div><div className="mt-1 break-words text-sm font-bold tabular-nums text-slate-800">{empty ? "—" : formatValue(value)}</div></div>; })}</div>}
                 </article>;
               })}
             </div>

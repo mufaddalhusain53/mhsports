@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 const tournaments = [
   {
@@ -27,7 +27,7 @@ const tournaments = [
 
 export default function TournamentsPage() {
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-16 md:px-10">
+    <main className="min-h-screen site-page-surface px-6 py-16 md:px-10">
 
       <div className="mx-auto max-w-7xl">
 

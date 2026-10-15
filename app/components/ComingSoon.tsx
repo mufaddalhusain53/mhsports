@@ -6,7 +6,7 @@ export default function ComingSoon({
   description?: string;
 }) {
   return (
-    <main className="flex min-h-[80vh] items-center justify-center bg-slate-50 px-6">
+    <main className="site-page-surface flex min-h-[80vh] items-center justify-center px-6">
       <div className="max-w-xl text-center">
 
         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-orange-100 text-4xl">

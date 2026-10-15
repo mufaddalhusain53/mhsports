@@ -6,7 +6,7 @@ export default function Home() {
 
       {/* HERO SECTION */}
 
-      <section className="relative min-h-[calc(100vh-73px)] overflow-hidden bg-slate-950 text-white">
+      <section className="relative min-h-[calc(100vh-73px)] overflow-hidden bg-slate-50 text-slate-950">
 
         {/* Background glow */}
 
@@ -42,7 +42,7 @@ export default function Home() {
 
             {/* Description */}
 
-            <p className="mt-8 max-w-2xl text-lg leading-8 text-slate-300 md:text-xl">
+            <p className="mt-8 max-w-2xl text-lg leading-8 text-slate-600 md:text-xl">
 
               A community-driven sports platform bringing together
               tournaments, players and cricket enthusiasts.

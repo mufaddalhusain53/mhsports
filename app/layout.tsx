@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
 
 export const metadata: Metadata = {
-  title: "Mufaddal Husain Sports",
+  title: {
+    default: "MH SPORTS",
+    template: "%s | MH SPORTS",
+  },
   description:
     "Community cricket, tournaments and sporting events by Mufaddal Husain Sports.",
 
@@ -14,11 +18,11 @@ export const metadata: Metadata = {
   },
 
   openGraph: {
-    title: "Mufaddal Husain Sports",
+    title: "MH SPORTS",
     description:
       "Community cricket, tournaments and sporting events by Mufaddal Husain Sports.",
     url: "https://mhsports53.vercel.app",
-    siteName: "Mufaddal Husain Sports",
+    siteName: "MH SPORTS",
     type: "website",
     images: [
       {
@@ -32,7 +36,7 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary",
-    title: "Mufaddal Husain Sports",
+    title: "MH SPORTS",
     description:
       "Community cricket, tournaments and sporting events by Mufaddal Husain Sports.",
     images: ["/mhsports-logo.png"],
@@ -49,6 +53,7 @@ export default function RootLayout({
       <body>
         <Navbar />
         {children}
+        <Footer />
       </body>
     </html>
   );

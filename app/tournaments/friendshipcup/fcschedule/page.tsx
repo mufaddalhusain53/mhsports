@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import SectionShell from "../SectionShell";
@@ -15,37 +15,37 @@ export default function SchedulePage() {
     .filter((match) => weekFilter === "All Weeks" || String(match.week) === weekFilter)
     .filter((match) => teamFilter === "All Teams" || match.home === teamFilter || match.away === teamFilter), [weekFilter, teamFilter]);
   return <SectionShell title="Season 7 Schedule" description="Browse the week-wise round-robin fixtures. Filter by week or team to quickly find a team's matches.">
-    <div className="grid gap-4 rounded-2xl border border-white/10 bg-slate-900 p-5 sm:grid-cols-2">
-      <label className="flex flex-col gap-2 text-sm font-bold text-slate-300">Week
-        <select value={weekFilter} onChange={(e) => setWeekFilter(e.target.value)} className="rounded-lg border border-white/10 bg-slate-950 px-4 py-3 text-white">
+    <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2">
+      <label className="flex flex-col gap-2 text-sm font-bold text-slate-600">Week
+        <select value={weekFilter} onChange={(e) => setWeekFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950">
           <option>All Weeks</option>{weeks.map((w) => <option key={w.week} value={String(w.week)}>Week {w.week}</option>)}
         </select>
       </label>
-      <label className="flex flex-col gap-2 text-sm font-bold text-slate-300">Team
-        <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-lg border border-white/10 bg-slate-950 px-4 py-3 text-white">
+      <label className="flex flex-col gap-2 text-sm font-bold text-slate-600">Team
+        <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950">
           {teams.map((team) => <option key={team}>{team}</option>)}
         </select>
       </label>
-      <p className="text-sm text-slate-400 sm:col-span-2">Showing {matches.length} match{matches.length === 1 ? "" : "es"}{weekFilter !== "All Weeks" ? ` · Week ${weekFilter}` : ""}{teamFilter !== "All Teams" ? ` · ${teamFilter}` : ""}</p>
+      <p className="text-sm text-slate-500 sm:col-span-2">Showing {matches.length} match{matches.length === 1 ? "" : "es"}{weekFilter !== "All Weeks" ? ` · Week ${weekFilter}` : ""}{teamFilter !== "All Teams" ? ` · ${teamFilter}` : ""}</p>
     </div>
     <div className="mt-6 space-y-8">
       {weeks.filter((w) => matches.some((m) => m.week === w.week)).map((week) => (
         <section key={week.week}>
-          <h2 className="mb-3 flex items-center gap-3 text-xl font-extrabold"><span className="rounded-lg bg-orange-500 px-3 py-1 text-sm">WEEK {week.week}</span><span className="text-sm font-medium text-slate-400">{matches.filter((m) => m.week === week.week).length} matches</span></h2>
+          <h2 className="mb-3 flex items-center gap-3 text-xl font-extrabold"><span className="rounded-lg bg-orange-500 px-3 py-1 text-sm">WEEK {week.week}</span><span className="text-sm font-medium text-slate-500">{matches.filter((m) => m.week === week.week).length} matches</span></h2>
           <div className="grid gap-3 lg:grid-cols-2">
             {matches.filter((m) => m.week === week.week).map((match) => (
-              <article key={`${match.week}-${match.match}`} className="rounded-2xl border border-white/10 bg-slate-900 p-5">
+              <article key={`${match.week}-${match.match}`} className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-black text-orange-300">{match.match}</span>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-black text-orange-600">{match.match}</span>
                   <div className="min-w-0 flex-1"><p className="truncate text-lg font-extrabold">{match.home}</p><p className="my-1 text-xs font-black uppercase text-orange-400">vs</p><p className="truncate text-lg font-extrabold">{match.away}</p></div>
-                  <div className="rounded-xl bg-emerald-900/40 px-4 py-3 text-center"><p className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">Pitch</p><p className="mt-1 whitespace-nowrap text-sm font-bold text-emerald-100">{match.pitch}</p></div>
+                  <div className="rounded-xl bg-emerald-100 px-4 py-3 text-center"><p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Pitch</p><p className="mt-1 whitespace-nowrap text-sm font-bold text-emerald-800">{match.pitch}</p></div>
                 </div>
               </article>
             ))}
           </div>
         </section>
       ))}
-      {matches.length === 0 && <div className="rounded-2xl border border-dashed border-white/15 p-10 text-center text-slate-400">No matches found for these filters.</div>}
+      {matches.length === 0 && <div className="rounded-2xl border border-dashed border-slate-200 p-10 text-center text-slate-500">No matches found for these filters.</div>}
     </div>
   </SectionShell>;
 }
