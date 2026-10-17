@@ -42,9 +42,9 @@ Redeploy the website after changing environment variables. The secret is server-
 
 ## 5. Test manually
 
-After migration, deploy, and environment variables are set, use the points table page's **Refresh standings** control. Expected successful response: `ok: true`, `team_count: 8`. Verify all eight rows in `fc_points_standings`.
+After migration, deploy, and environment variables are set, sign in to `/admin`, choose **Friendship Cup**, and click **Refresh Points Table**. Expected successful response: `ok: true`, `team_count: 8`. Verify all eight rows in `fc_points_standings`.
 
-If parsing fails, the function returns an error and does not replace the existing cached standings. CricHeroes embeds this data in its Next.js payload, which is undocumented and may change; this first parser must be tested against a live response before relying on it.
+The points table is publicly readable and does not require a CricHeroes account. The sync parses the standings rows embedded in the public page and validates all eight expected teams before updating the cache. If fetching or parsing fails, it returns an error and leaves the cached standings unchanged. CricHeroes' embedded page data is undocumented and may change.
 
 ## 6. Schedule every five minutes
 
@@ -72,7 +72,7 @@ Before running the schedule SQL, enable the `pg_cron`, `pg_net`, and Vault exten
 
 ## Important hardening before public production
 
-- The current manual-refresh API route is a server-side bridge and keeps `FC_SYNC_SECRET` off the browser. Before a high-traffic public launch, protect this route with the site's admin session or add server-side rate limiting so visitors cannot repeatedly trigger upstream fetches.
+- The manual-refresh API route requires the site's admin session and keeps `FC_SYNC_SECRET` off the browser. The secret protects this site's sync function; it is not a CricHeroes credential.
 - The scraper relies on CricHeroes' undocumented embedded payload. Keep response validation enabled and monitor failed runs.
 - Run `npm run build` after installing dependencies. The ZIP intentionally excludes credentials and `.env` files.
 

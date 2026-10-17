@@ -36,21 +36,39 @@ function first(o: Record<string, unknown>, keys: string[], fallback: unknown = 0
   for (const k of keys) if (o[k] !== undefined && o[k] !== null) return o[k];
   return fallback;
 }
+
+function findObjectStart(text: string, position: number): number {
+  let inString = false;
+  let depth = 0;
+  for (let i = position - 1; i >= 0; i--) {
+    const c = text[i];
+    if (c === '"') {
+      let backslashes = 0;
+      for (let j = i - 1; j >= 0 && text[j] === "\\"; j--) backslashes++;
+      if (backslashes % 2 === 0) inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (c === "}") depth++;
+    if (c === "{") {
+      if (depth === 0) return i;
+      depth--;
+    }
+  }
+  return -1;
+}
+
 function parseStandings(html: string): Standing[] {
-  // CricHeroes currently embeds standings in its Next.js RSC payload. Normalize
-  // escaped quotes, then parse candidate JSON objects rather than scraping table markup.
   const normalized = html.replace(/\\+"/g, '"').replace(/\\\\/g, "\\");
   const candidates: Record<string, unknown>[] = [];
   const markers = ['"Team Name"', '"team_name"'];
   for (const marker of markers) {
     let from = 0;
     while ((from = normalized.indexOf(marker, from)) !== -1) {
-      const start = normalized.lastIndexOf("{", from);
+      const start = findObjectStart(normalized, from);
       if (start >= 0) {
-        // Candidate objects are short enough to scan; find a closing brace while
-        // respecting quoted strings.
         let quoted = false, escaped = false, depth = 0, end = -1;
-        for (let i = start; i < normalized.length && i < start + 5000; i++) {
+        for (let i = start; i < normalized.length; i++) {
           const c = normalized[i];
           if (escaped) { escaped = false; continue; }
           if (c === "\\") { escaped = true; continue; }
@@ -77,6 +95,10 @@ function parseStandings(html: string): Standing[] {
     const teamName = str(first(o, ["team_name", "Team Name", "teamName"])).trim();
     const teamId = str(first(o, ["team_id", "TeamID", "teamId", "teamID"], "")).trim();
     if (!teamName || !teamId || !EXPECTED_TEAM_IDS.has(teamId)) continue;
+    const hasStandingsData = ["matches", "Matches"].some(key => o[key] !== undefined)
+      && ["won", "Won"].some(key => o[key] !== undefined)
+      && ["points", "Points"].some(key => o[key] !== undefined);
+    if (!hasStandingsData) continue;
     const nrrRaw = first(o, ["net_rr", "Net RR", "NetRR", "NRR"], 0);
     const nrr = typeof nrrRaw === "string" ? Number(nrrRaw) : num(nrrRaw);
     const row: Standing = {
@@ -126,7 +148,12 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
   try {
     const response = await fetch(TOURNAMENT_URL, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; MHSportsFCStandings/1.0)", "Accept": "text/html" },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://cricheroes.com/",
+      },
       signal: AbortSignal.timeout(20000),
     });
     if (!response.ok) throw new Error(`CricHeroes returned HTTP ${response.status}`);
@@ -141,7 +168,7 @@ Deno.serve(async (req) => {
 
     const { error: logError } = await admin.from("fc_points_sync_runs").insert({
       tournament_key: TOURNAMENT_KEY, status: "success", team_count: standings.length,
-      message: "Standings validated and saved.",
+      message: "All public standings rows validated and saved.",
     });
     if (logError) console.error("Could not write success log", logError);
 

@@ -25,8 +25,11 @@ export async function POST() {
       signal: AbortSignal.timeout(25000),
     });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      return NextResponse.json({ error: body.error ?? `Sync failed (${response.status})` }, { status: response.status });
+    if (!response.ok || body.ok !== true) {
+      return NextResponse.json(
+        { error: body.error ?? `Sync failed (${response.status})` },
+        { status: response.ok ? 502 : response.status },
+      );
     }
     return NextResponse.json(body);
   } catch {

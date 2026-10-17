@@ -134,7 +134,7 @@ export default function AdminDashboard({ responses }: Props) {
       const response = await fetch("/api/points-table/refresh", { method: "POST" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Points table refresh failed.");
-      setRefreshStatus("Points table refreshed successfully.");
+      setRefreshStatus(`Updated ${result.team_count} teams from CricHeroes.`);
     } catch (error) {
       setRefreshStatus(error instanceof Error ? error.message : "Points table refresh failed.");
     } finally {
@@ -231,7 +231,7 @@ export default function AdminDashboard({ responses }: Props) {
             <div className="grid gap-5 md:grid-cols-1">
               <div className="rounded-2xl bg-white p-6 shadow-sm">
                 <h3 className="text-lg font-black text-slate-900">Refresh Points Table</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-500">Fetch the latest Friendship Cup standings from the configured CricHeroes sync.</p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">Refresh all eight standings from the public CricHeroes points table. No CricHeroes login is required.</p>
                 <button type="button" onClick={refreshFriendshipCupPoints} disabled={refreshBusy} className="mt-5 rounded-xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600 disabled:opacity-60">
                   {refreshBusy ? "Refreshing…" : "↻ Refresh Points Table"}
                 </button>

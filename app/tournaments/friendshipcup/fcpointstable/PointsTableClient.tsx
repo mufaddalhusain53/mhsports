@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 
 type Standing = {
@@ -11,49 +11,60 @@ type Standing = {
 };
 
 const TOURNAMENT_KEY = "friendship-cup-s7";
-const fmt = (n: number) => Number(n ?? 0).toFixed(2);
+const fmt = (n: number) => Number(n ?? 0).toFixed(3);
 
 export default function PointsTableClient() {
   const [rows, setRows] = useState<Standing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    const { data, error: queryError } = await supabase
+  useEffect(() => {
+    let cancelled = false;
+    void supabase
       .from("fc_points_standings")
       .select("*")
       .eq("tournament_key", TOURNAMENT_KEY)
-      .order("position", { ascending: true });
-    if (queryError) {
-      setError("Unable to load the cached standings. Apply the Supabase SQL migration and check the public environment variables.");
-      return;
-    }
-    setRows((data ?? []) as Standing[]);
-    setError("");
+      .order("position", { ascending: true })
+      .then(({ data, error: queryError }) => {
+        if (cancelled) return;
+        if (queryError) {
+          setError("Unable to load the cached standings. Apply the Supabase SQL migration and check the public environment variables.");
+        } else {
+          setRows((data ?? []) as Standing[]);
+          setError("");
+        }
+        setLoading(false);
+      }, (queryError: unknown) => {
+        console.error("Could not load Friendship Cup standings:", queryError);
+        if (!cancelled) {
+          setError("Unable to load the cached standings. Check the public environment variables and try again.");
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => { void load().finally(() => setLoading(false)); }, [load]);
-
 
   return (
     <div>
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
       {/* Desktop: full standings table */}
       <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="w-full min-w-[1120px] text-left text-sm">
           <thead className="bg-white text-xs uppercase tracking-wider text-slate-500">
-            <tr>{["Pos","Team","P","W","L","D/T","NR","Pts","NRR"].map(x => <th key={x} className="px-4 py-4">{x}</th>)}</tr>
+            <tr>{["Pos","Team","M","W","L","D","T","NR","NRR","For","Against","Pts","Last 5"].map(x => <th key={x} className="px-4 py-4">{x}</th>)}</tr>
           </thead>
           <tbody>
-            {loading ? <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-500">Loading cached standings…</td></tr>
-              : rows.length === 0 ? <tr><td colSpan={9} className="px-4 py-10 text-center text-slate-500">No standings have synced yet. Please check back later.</td></tr>
+            {loading ? <tr><td colSpan={13} className="px-4 py-10 text-center text-slate-500">Loading cached standings…</td></tr>
+              : rows.length === 0 ? <tr><td colSpan={13} className="px-4 py-10 text-center text-slate-500">No standings have synced yet. Please check back later.</td></tr>
               : rows.map(row => <tr key={row.team_id} className="border-t border-slate-200 hover:bg-white/[0.03]">
                 <td className="px-4 py-4 font-bold text-orange-600">{row.position}</td>
                 <td className="px-4 py-4 font-semibold text-slate-950">{row.team_name}</td>
                 <td className="px-4 py-4">{row.matches_played}</td><td className="px-4 py-4">{row.won}</td>
-                <td className="px-4 py-4">{row.lost}</td><td className="px-4 py-4">{row.drawn + row.tied}</td>
-                <td className="px-4 py-4">{row.no_result}</td><td className="px-4 py-4 font-bold">{row.points}</td>
+                <td className="px-4 py-4">{row.lost}</td><td className="px-4 py-4">{row.drawn}</td>
+                <td className="px-4 py-4">{row.tied}</td><td className="px-4 py-4">{row.no_result}</td>
                 <td className="px-4 py-4">{fmt(row.net_run_rate)}</td>
+                <td className="px-4 py-4">{row.runs_for ?? "—"}</td><td className="px-4 py-4">{row.runs_against ?? "—"}</td>
+                <td className="px-4 py-4 font-bold">{row.points}</td><td className="px-4 py-4">{row.last_five ?? "—"}</td>
               </tr>)}
           </tbody>
         </table>
@@ -75,14 +86,18 @@ export default function PointsTableClient() {
                 <div className="text-lg font-extrabold text-orange-600">{row.points}</div>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-4 border-t border-slate-200 pt-4">
+            <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4 border-t border-slate-200 pt-4">
               {[
                 ["Played", row.matches_played],
                 ["Won", row.won],
                 ["Lost", row.lost],
-                ["Drawn / Tied", row.drawn + row.tied],
+                ["Drawn", row.drawn],
+                ["Tied", row.tied],
                 ["No Result", row.no_result],
                 ["NRR", fmt(row.net_run_rate)],
+                ["For", row.runs_for ?? "—"],
+                ["Against", row.runs_against ?? "—"],
+                ["Last 5", row.last_five ?? "—"],
               ].map(([label, value]) => (
                 <div key={String(label)} className="min-w-0">
                   <div className="break-words text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>
