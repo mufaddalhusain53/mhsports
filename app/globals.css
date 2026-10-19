@@ -34,3 +34,12 @@ body {
   background-attachment: fixed;
   background-size: cover;
 }
+input.bid-amount::-webkit-inner-spin-button,
+input.bid-amount::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input.bid-amount {
+  -moz-appearance: textfield;
+}

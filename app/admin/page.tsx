@@ -41,6 +41,16 @@ const adminPages = [
       },
     ],
   },
+  {
+    tournament: "Live Auctions",
+    sections: [
+      {
+        title: "Auction Hosting",
+        description: "Create tournaments, manage teams and player pools, and host live auctions.",
+        href: "/admin/auctions",
+      },
+    ],
+  },
 ];
 
 export default async function AdminPage() {
