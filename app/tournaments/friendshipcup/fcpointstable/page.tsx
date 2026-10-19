@@ -5,7 +5,7 @@ import PointsTableClient from "./PointsTableClient";
 export const metadata = { title: "Friendship Cup Points Table" };
 
 export default function PointsTablePage() {
-  return <SectionShell title="Friendship Cup S7 Points Table" description="FC S7 league standings.">
+  return <SectionShell title="Season 7 Points Table" description="Friendship Cup Season 7 league standings.">
     <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div>
         <p className="font-semibold text-slate-950">Friendship Cup Season 7</p>

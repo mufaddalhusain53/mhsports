@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import TournamentLogo from "../../../components/TournamentLogo";
 import { useEffect, useMemo, useState } from "react";
 
 type CsvFile = { season: number; category: string; file_name: string; csv_content: string; updated_at: string };
@@ -172,9 +173,9 @@ export default function Stats() {
       </div>
       <section className="border-b border-slate-200 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-orange-500/15 via-slate-50 to-slate-50">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-400">Record books</p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">QuadClash 100 <span className="text-orange-400">Stats</span></h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">Explore player leaderboards across QuadClash 100 seasons.</p>
+          <TournamentLogo tournament="quadclash100" className="h-28 w-28 sm:h-36 sm:w-36" />
+          <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">Stats</h1>
+          <p className="sr-only">Explore player leaderboards across QuadClash 100 seasons.</p>
           <div className="mt-7 max-w-md">
             <label className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Choose season
               <select value={season} onChange={(event) => { setSeason(event.target.value); setSortKey(""); setSortDirection("desc"); }} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-base font-semibold normal-case tracking-normal text-slate-950 outline-none focus:border-orange-400"><option value="1">Season 1</option><option value="2">Season 2</option></select>

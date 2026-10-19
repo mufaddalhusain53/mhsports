@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import TournamentLogo from "../../components/TournamentLogo";
 
 type Category = "Batting" | "Bowling" | "Fielding" | "MVP";
 type Row = Record<string, string | number> & { __season?: number; __playerKey?: string };
@@ -303,10 +304,8 @@ export default function FriendshipCupStats() {
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
           <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/30 bg-orange-400/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-orange-600">
-                <span className="h-2 w-2 rounded-full bg-orange-400" /> Mufaddal Husain Sports
-              </div>
-              <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">Friendship Cup <span className="text-orange-400">Stats</span></h1>
+              <TournamentLogo tournament="friendshipcup" className="h-28 w-28 sm:h-36 sm:w-36" />
+              <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">Stats</h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">Every run, wicket and moment that shaped the tournament. Explore player leaderboards across Friendship Cup seasons.</p>
             </div>
             <div className="w-full md:max-w-xs">

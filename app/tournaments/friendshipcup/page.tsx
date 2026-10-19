@@ -1,4 +1,5 @@
 ﻿import Link from "next/link";
+import TournamentLogo from "../../components/TournamentLogo";
 
 const sections = [
   { href: "/tournaments/friendshipcup/fcstats", icon: "📊", title: "Friendship Cup Stats", description: "Explore batting, bowling and fielding records across all seasons." },
@@ -16,8 +17,8 @@ export default function FriendshipCupPage() {
   return (
     <main className="min-h-screen site-page-surface px-5 py-12 text-slate-950 sm:px-8 md:py-16">
       <div className="mx-auto max-w-7xl">
-        <p className="text-xs font-black uppercase tracking-[0.28em] text-orange-400">Mufaddal Husain Sports</p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">Friendship Cup</h1>
+        <h1 className="sr-only">Friendship Cup</h1>
+        <TournamentLogo tournament="friendshipcup" className="h-40 w-40 sm:h-48 sm:w-48" />
         <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">Your home for every season — records, fixtures, standings, champions and memories.</p>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {sections.map((item) => (

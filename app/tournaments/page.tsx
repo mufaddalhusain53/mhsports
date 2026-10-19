@@ -1,23 +1,34 @@
 ﻿import Link from "next/link";
+import Image from "next/image";
 
-const tournaments = [
+const tournaments: {
+  name: string;
+  slug: string;
+  logo: string | null;
+  icon: string | null;
+  description: string;
+  featured?: boolean;
+}[] = [
   {
     name: "Friendship Cup",
     slug: "/tournaments/friendshipcup",
-    icon: "🏏",
+    logo: "/friendship-cup-logo.png",
+    icon: null,
     description:
       "Our flagship grassroots cricket tournament focused on friendship, competition and community.",
   },
   {
     name: "QuadClash 100",
     slug: "/tournaments/quadclash100",
-    icon: "⚡",
+    logo: "/quadclash100-logo.png",
+    icon: null,
     description:
       "A fast-paced 100-ball cricket tournament built around excitement and competition.",
   },
   {
     name: "Inter Mohalla Tournament",
     slug: "/tournaments/inter-mohalla",
+    logo: null,
     icon: "🏘️",
     description:
       "A new community cricket initiative bringing Mohallas together through the spirit of sport.",
@@ -58,9 +69,19 @@ export default function TournamentsPage() {
               }`}
             >
 
-              <div className="text-5xl">
-                {tournament.icon}
-              </div>
+              {tournament.logo ? (
+                <Image
+                  src={tournament.logo}
+                  alt={`${tournament.name} logo`}
+                  width={180}
+                  height={180}
+                  className="h-32 w-32 object-contain"
+                />
+              ) : (
+                <div className="text-5xl" aria-hidden="true">
+                  {tournament.icon}
+                </div>
+              )}
 
               <h2 className="mt-6 text-2xl font-black text-slate-900">
                 {tournament.name}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import TournamentLogo from "../../../components/TournamentLogo";
 import QuadClashRegistrationForm from "./registration-form";
 
 const tournamentHighlights = [
@@ -19,12 +20,10 @@ export default function Registration() {
           ← Back to QuadClash 100
         </Link>
 
-        <p className="mt-8 text-xs font-black uppercase tracking-widest text-orange-500">
-          QuadClash 100
-        </p>
-        <h1 className="mt-2 text-4xl font-black sm:text-5xl">
-          Player Registration
-        </h1>
+        <div className="mt-8">
+          <TournamentLogo tournament="quadclash100" className="h-28 w-28 sm:h-36 sm:w-36" />
+        </div>
+        <h1 className="mt-4 text-4xl font-black sm:text-5xl">Player Registration</h1>
 
         <section
           aria-labelledby="tournament-details"
