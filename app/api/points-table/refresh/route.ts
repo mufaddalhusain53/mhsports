@@ -76,7 +76,8 @@ export async function POST() {
       );
     }
     return NextResponse.json(body);
-  } catch {
-    return NextResponse.json({ error: "Could not reach the Supabase sync function." }, { status: 502 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not complete the points-table refresh.";
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }
