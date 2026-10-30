@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import QuadClashRegistrationAdmin from "./quadclash-registration-admin";
+import FcPointsPdfUpload from "./fc-points-pdf-upload";
 
 type SurveyResponse = {
   id: number;
@@ -54,8 +55,8 @@ export default function AdminDashboard({ responses, view }: Props) {
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("All");
   const [jamiat, setJamiat] = useState("All");
-  const [refreshBusy, setRefreshBusy] = useState(false);
-  const [refreshStatus, setRefreshStatus] = useState("");
+  const refreshBusy = false;
+  const refreshStatus = "";
   const [statsSeason, setStatsSeason] = useState("1");
   const [statsCategory, setStatsCategory] = useState("batting");
   const [statsFile, setStatsFile] = useState<File | null>(null);
@@ -154,20 +155,7 @@ export default function AdminDashboard({ responses, view }: Props) {
     window.location.href = "/admin";
   }
 
-  async function refreshFriendshipCupPoints() {
-    setRefreshBusy(true);
-    setRefreshStatus("");
-    try {
-      const response = await fetch("/api/points-table/refresh", { method: "POST" });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error ?? "Points table refresh failed.");
-      setRefreshStatus(`Updated ${result.team_count} teams from CricHeroes.`);
-    } catch (error) {
-      setRefreshStatus(error instanceof Error ? error.message : "Points table refresh failed.");
-    } finally {
-      setRefreshBusy(false);
-    }
-  }
+  async function refreshFriendshipCupPoints() {}
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -218,11 +206,12 @@ export default function AdminDashboard({ responses, view }: Props) {
             <div className="rounded-2xl bg-white p-6 shadow-sm">
               <p className="text-sm font-bold uppercase tracking-wider text-orange-500">Friendship Cup</p>
               <h2 className="mt-1 text-2xl font-black text-slate-900">Tournament Admin</h2>
-              <p className="mt-2 text-sm text-slate-500">Refresh the Season 7 points table.</p>
+              <p className="mt-2 text-sm text-slate-500">Update the Season 7 points table from a CricHeroes PDF.</p>
             </div>
             <h3 className="px-1 text-xl font-black text-slate-900">Leaderboard Update</h3>
             <div className="grid gap-5 md:grid-cols-1">
-              <div className="rounded-2xl bg-white p-6 shadow-sm">
+              <FcPointsPdfUpload />
+              <div className="hidden rounded-2xl bg-white p-6 shadow-sm">
                 <h3 className="text-lg font-black text-slate-900">Refresh Points Table</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-500">Refresh all eight standings from the public CricHeroes points table. No CricHeroes login is required.</p>
                 <button type="button" onClick={refreshFriendshipCupPoints} disabled={refreshBusy} className="mt-5 rounded-xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600 disabled:opacity-60">
