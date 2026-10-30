@@ -6,6 +6,19 @@ type Team = { team_id: string; team_name: string };
 type Row = { team_id: string; position: number; matches_played: number; won: number; lost: number; drawn: number; tied: number; no_result: number; points: number; net_run_rate: number; runs_for: string; runs_against: string; last_five: string };
 const blank = (team_id = "", position = 1): Row => ({ team_id, position, matches_played: 0, won: 0, lost: 0, drawn: 0, tied: 0, no_result: 0, points: 0, net_run_rate: 0, runs_for: "", runs_against: "", last_five: "" });
 
+async function prepareScreenshot(file: File) {
+  const image = await createImageBitmap(file);
+  const scale = 3;
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width * scale; canvas.height = image.height * scale;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not prepare the screenshot.");
+  context.filter = "grayscale(1) contrast(2.25)";
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
 function prefillRows(ocr: string, teams: Team[], current: Row[]) {
   return current.map((row) => {
     const team = teams.find((item) => item.team_id === row.team_id);
@@ -55,6 +68,8 @@ export default function FcPointsPdfUpload() {
         const context = canvas.getContext("2d"); if (!context) throw new Error("Could not prepare the PDF image.");
         await page.render({ canvas, canvasContext: context, viewport }).promise;
         source = canvas;
+      } else {
+        source = await prepareScreenshot(file);
       }
       const { data } = await (await import("tesseract.js")).recognize(source, "eng");
       setOcr(data.text); setRows(current => prefillRows(data.text, teams, current)); setStatus("OCR complete. The review table was filled from the PDF—check each value, then save.");
