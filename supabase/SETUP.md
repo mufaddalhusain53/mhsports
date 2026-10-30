@@ -44,7 +44,7 @@ Redeploy the website after changing environment variables. The secret is server-
 
 After migration, deploy, and environment variables are set, sign in to `/admin`, choose **Friendship Cup**, and click **Refresh Points Table**. Expected successful response: `ok: true`, `team_count: 8`. Verify all eight rows in `fc_points_standings`.
 
-The points table is publicly readable and does not require a CricHeroes account. The sync parses the standings rows embedded in the public page and validates all eight expected teams before updating the cache. If fetching or parsing fails, it returns an error and leaves the cached standings unchanged. CricHeroes' embedded page data is undocumented and may change.
+The points table is publicly readable and does not require a CricHeroes account. The sync parses the standings rows embedded in the public page and validates all eight expected teams before updating the cache. If fetching or parsing fails, it returns an error and leaves the cached standings unchanged. When CricHeroes rejects Supabase's Deno egress with HTTP 403, the authenticated Vercel refresh route retries the public fetch and passes the response to the function for the same validation and write. Deploy both the Vercel app and the Edge Function after this change. CricHeroes' embedded page data is undocumented and may change.
 
 ## 6. Schedule every five minutes
 

@@ -147,17 +147,22 @@ Deno.serve(async (req) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
   try {
-    const response = await fetch(TOURNAMENT_URL, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://cricheroes.com/",
-      },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!response.ok) throw new Error(`CricHeroes returned HTTP ${response.status}`);
-    const html = await response.text();
+    const supplied = await req.json().catch(() => null);
+    let html = typeof supplied?.html === "string" ? supplied.html : "";
+    if (html.length > 5_000_000) throw new Error("Supplied CricHeroes response is too large.");
+    if (!html) {
+      const response = await fetch(TOURNAMENT_URL, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Referer": "https://cricheroes.com/",
+        },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!response.ok) throw new Error(`CricHeroes returned HTTP ${response.status}`);
+      html = await response.text();
+    }
     if (!html.includes(TOURNAMENT_ID) || !html.toLowerCase().includes("friendship cup s7")) {
       throw new Error("Response did not match the expected CricHeroes tournament.");
     }
