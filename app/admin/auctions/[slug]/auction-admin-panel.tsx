@@ -6,12 +6,13 @@ import * as XLSX from "xlsx";
 import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
+import { supabase } from "@/lib/supabase/client";
 
-type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number };
+type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
 type Player = {
   id: string; player_number: number; full_name: string; category: string; role: string | null;
   batting_style: string | null; bowling_style: string | null; previous_team: string | null; photo_url: string | null;
-  status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null;
+  status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null; rtm_team_id: string | null;
 };
 type Sponsor = { id: string; name: string; logo_url: string | null; website_url: string | null };
 type IncrementRule = { from: number; increment: number };
@@ -22,8 +23,8 @@ type Tournament = {
   tournament_logo_url: string | null; organizer_logo_urls: string[];
 };
 type AuctionData = { tournament: Tournament; teams: Team[]; players: Player[]; sponsors: Sponsor[] };
-type PlayerFormData = Omit<Player, "status" | "sold_team_id" | "sold_price">;
-type TeamFormData = Pick<Team, "id" | "name" | "logo_url">;
+type PlayerFormData = Omit<Player, "status" | "sold_team_id" | "sold_price" | "rtm_team_id">;
+type TeamFormData = Pick<Team, "id" | "name" | "logo_url" | "rtm_count">;
 type SponsorFormData = Sponsor;
 
 const inputClass = "mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-orange-500";
@@ -72,6 +73,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [busy, setBusy] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [teamLogo, setTeamLogo] = useState("");
+  const [teamRTM, setTeamRTM] = useState("0");
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [tournamentLogoUrl, setTournamentLogoUrl] = useState("");
   const [organizerLogoUrls, setOrganizerLogoUrls] = useState("");
@@ -81,12 +83,14 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [incrementRules, setIncrementRules] = useState<IncrementRule[]>([]);
   const [selectionMode, setSelectionMode] = useState("random");
   const [selectionCategory, setSelectionCategory] = useState("");
-  const [selectedPlayerNumber, setSelectedPlayerNumber] = useState("");
+  const [playerPoolFilter, setPlayerPoolFilter] = useState("");
+  const [playerPoolSearchMode, setPlayerPoolSearchMode] = useState<"name" | "number">("name");
   const [bidDraft, setBidDraft] = useState<{ key: string; value: string } | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<PlayerFormData | null>(null);
   const [editingTeam, setEditingTeam] = useState<TeamFormData | null>(null);
   const [editingSponsor, setEditingSponsor] = useState<SponsorFormData | null>(null);
   const [pendingReauctionPlayer, setPendingReauctionPlayer] = useState<Player | null>(null);
+  const [pendingRTMPlayer, setPendingRTMPlayer] = useState<Player | null>(null);
   const [pendingDeleteTeam, setPendingDeleteTeam] = useState<Team | null>(null);
   const [pendingDeleteSponsor, setPendingDeleteSponsor] = useState<Sponsor | null>(null);
   const [pendingBids, setPendingBids] = useState(0);
@@ -125,17 +129,68 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     return () => { active = false; };
   }, [slug]);
 
+  useEffect(() => {
+    if (!data?.tournament.id) return;
+    const tournamentId = data.tournament.id;
+    const channel = supabase.channel(`admin-auction-${tournamentId}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "auction_tournaments", filter: `slug=eq.${slug}` }, ({ new: row }) => {
+        setData((previous) => previous ? { ...previous, tournament: { ...previous.tournament, ...(row as Partial<Tournament>) } } : previous);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "auction_teams", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
+        const row = change.new as Partial<Team>;
+        setData((previous) => {
+          if (!previous) return previous;
+          if (change.eventType === "DELETE") return { ...previous, teams: previous.teams.filter((team) => team.id !== change.old.id) };
+          return { ...previous, teams: previous.teams.map((team) => team.id === row.id ? { ...team, ...row } : team) };
+        });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "auction_players", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
+        const row = change.new as Partial<Player>;
+        setData((previous) => {
+          if (!previous) return previous;
+          if (change.eventType === "DELETE") return { ...previous, players: previous.players.filter((player) => player.id !== change.old.id) };
+          return { ...previous, players: previous.players.map((player) => player.id === row.id ? { ...player, ...row } : player) };
+        });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "auction_sponsors", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
+        const row = change.new as Partial<Sponsor>;
+        setData((previous) => {
+          if (!previous) return previous;
+          if (change.eventType === "DELETE") return { ...previous, sponsors: previous.sponsors.filter((sponsor) => sponsor.id !== change.old.id) };
+          const exists = previous.sponsors.some((sponsor) => sponsor.id === row.id);
+          return { ...previous, sponsors: exists ? previous.sponsors.map((sponsor) => sponsor.id === row.id ? { ...sponsor, ...row } : sponsor) : [...previous.sponsors, row as Sponsor] };
+        });
+      })
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [data?.tournament.id, slug]);
+
   const availablePlayers = useMemo(() => (data?.players ?? []).filter((player) => player.status === "available"), [data]);
-  const categories = useMemo(() => {
-    const pool = selectionMode === "unsold"
-      ? (data?.players ?? []).filter((player) => player.status === "unsold")
-      : availablePlayers;
-    return Array.from(new Set(pool.map((player) => player.category))).sort();
-  }, [availablePlayers, data, selectionMode]);
+  const categories = useMemo(() => Array.from(new Set(availablePlayers.map((player) => player.category))).sort(), [availablePlayers]);
   const currentPlayer = data?.players.find((player) => player.id === data.tournament.current_player_id);
   const currentTeam = data?.teams.find((team) => team.id === data.tournament.current_bid_team_id);
+  const soldTeam = currentPlayer && currentPlayer.status === "sold" && currentPlayer.sold_team_id
+    ? data?.teams.find((team) => team.id === currentPlayer.sold_team_id) ?? null
+    : null;
   const soldPlayers = data?.players.filter((player) => player.status === "sold").length ?? 0;
   const unsoldPlayers = data?.players.filter((player) => player.status === "unsold").length ?? 0;
+  const canSelectNextPlayer = useMemo(() => {
+    if (!data) return false;
+    const pool = availablePlayers.filter((player) => player.id !== currentPlayer?.id);
+    const candidates = selectionCategory ? pool.filter((player) => player.category === selectionCategory) : pool;
+    return candidates.length > 0;
+  }, [availablePlayers, currentPlayer?.id, data, selectionCategory]);
+  const filteredPlayerPool = useMemo(() => {
+    const query = playerPoolFilter.trim().toLowerCase();
+    if (!query) return data?.players ?? [];
+    return (data?.players ?? []).filter((player) => {
+      if (playerPoolSearchMode === "number") {
+        return String(player.player_number).includes(query);
+      }
+      return player.full_name.toLowerCase().includes(query);
+    });
+  }, [data?.players, playerPoolFilter, playerPoolSearchMode]);
   const nextBid = data?.tournament.current_bid == null
     ? data?.tournament.base_price ?? 0
     : Math.round((data.tournament.current_bid + incrementForBid(data.tournament, data.tournament.current_bid)) * 100) / 100;
@@ -143,10 +198,15 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     const bought = (data?.players ?? []).filter((player) => player.status === "sold" && player.sold_team_id === team.id).length;
     return Math.max((data?.tournament.min_squad_size ?? 0) - bought - 1, 0) * (data?.tournament.base_price ?? 0);
   }
-  function maximumBidForTeam(team: Team) { return Math.max(0, team.points_remaining - reserveForTeam(team)); }
+  function maximumBidForTeam(team: Team) {
+    const rtmBoost = (team.rtm_count ?? 0) * (data?.tournament.base_price ?? 0);
+    return Math.max(0, team.points_remaining - reserveForTeam(team) + rtmBoost);
+  }
 
-  const numberSelectedPlayer = data?.players.find((player) => player.player_number === Number(selectedPlayerNumber));
   const bidDraftKey = `${currentPlayer?.id ?? ""}:${data?.tournament.current_bid ?? "opening"}`;
+  useEffect(() => {
+    setBidDraft(null);
+  }, [data?.tournament.current_player_id, data?.tournament.current_bid, data?.tournament.current_bid_team_id]);
   const bidAmount = bidDraft?.key === bidDraftKey ? bidDraft.value : String(nextBid ?? "");
   const minimumSelectableBid = data?.tournament.current_bid == null ? (nextBid ?? 0) : data.tournament.base_price;
   function adjustBid(direction: "up" | "down") {
@@ -165,16 +225,39 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     if (body.action === "select_player" && typeof body.playerId === "string") {
       const target = previous.players.find((player) => player.id === body.playerId);
       if (!target) return previous;
-      const teams = previous.teams.map((team) => team.id === target.sold_team_id
-        ? { ...team, points_remaining: team.points_remaining + (target.sold_price ?? 0) }
-        : team);
+      const teams = previous.teams.map((team) => {
+        if (team.id === target.sold_team_id) {
+          return { ...team, points_remaining: team.points_remaining + (target.sold_price ?? 0) };
+        }
+        if (target.rtm_team_id && team.id === target.rtm_team_id) {
+          return { ...team, rtm_count: (team.rtm_count ?? 0) + 1 };
+        }
+        return team;
+      });
       return {
         ...previous,
         teams,
         players: previous.players.map((player) => player.id === target.id
-          ? { ...player, status: "available", sold_team_id: null, sold_price: null }
+          ? { ...player, status: "available", sold_team_id: null, sold_price: null, rtm_team_id: null }
           : player),
         tournament: { ...tournament, current_player_id: target.id, current_bid: null, current_bid_team_id: null },
+      };
+    }
+    if (body.action === "rtm" && typeof body.playerId === "string" && typeof body.teamId === "string") {
+      const player = previous.players.find((item) => item.id === body.playerId);
+      if (!player || !player.sold_team_id) return previous;
+      const currentOwner = previous.teams.find((team) => team.id === player.sold_team_id);
+      const nextOwner = previous.teams.find((team) => team.id === body.teamId);
+      if (!currentOwner || !nextOwner) return previous;
+      const soldPrice = player.sold_price ?? 0;
+      return {
+        ...previous,
+        teams: previous.teams.map((team) => {
+          if (team.id === currentOwner.id) return { ...team, points_remaining: team.points_remaining + soldPrice };
+          if (team.id === nextOwner.id) return { ...team, points_remaining: team.points_remaining - soldPrice, rtm_count: Math.max(0, (team.rtm_count ?? 0) - 1) };
+          return team;
+        }),
+        players: previous.players.map((item) => item.id === player.id ? { ...item, sold_team_id: nextOwner.id } : item),
       };
     }
     if ((body.action === "bid" || body.action === "correct_bid") && typeof body.teamId === "string" && typeof body.amount === "number") {
@@ -261,11 +344,11 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     try {
       const response = await fetch(`/api/admin/auctions/${encodeURIComponent(slug)}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add_team", name: teamName, logoUrl: teamLogo }),
+        body: JSON.stringify({ action: "add_team", name: teamName, logoUrl: teamLogo, rtmCount: Number(teamRTM) || 0 }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Unable to add team.");
-      setTeamName(""); setTeamLogo(""); await load(); setMessage("Team added.");
+      setTeamName(""); setTeamLogo(""); setTeamRTM("0"); await load(); setMessage("Team added.");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to add team."); }
     finally { setBusy(false); }
   }
@@ -278,6 +361,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
       teamId: editingTeam.id,
       name: editingTeam.name,
       logoUrl: editingTeam.logo_url,
+      rtmCount: Number(editingTeam.rtm_count) || 0,
     });
     if (saved) {
       setEditingTeam(null);
@@ -426,24 +510,35 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
 
   async function selectPlayer() {
     if (!data) return;
-    let playerId = numberSelectedPlayer?.id ?? "";
-    if (selectionMode === "random" || selectionMode === "category" || selectionMode === "unsold") {
-      const pool = selectionMode === "unsold"
-        ? data.players.filter((player) => player.status === "unsold")
-        : availablePlayers.filter((player) => player.id !== currentPlayer?.id);
-      const candidates = selectionCategory ? pool.filter((player) => player.category === selectionCategory) : pool;
-      if (!candidates.length) { setError("No other players are available for that selection."); return; }
-      playerId = candidates[Math.floor(Math.random() * candidates.length)].id;
-    }
-    if (!playerId || (selectionMode === "number" && !numberSelectedPlayer)) {
-      setError("Enter a player number that exists in this tournament.");
+    let playerId = "";
+    const basePool = availablePlayers.filter((player) => player.id !== currentPlayer?.id);
+    const candidates = selectionCategory ? basePool.filter((player) => player.category === selectionCategory) : basePool;
+    if (!candidates.length) {
+      setError("No other players are available for that selection.");
       return;
+    }
+    if (selectionMode === "sequence") {
+      const nextCandidate = [...candidates].sort((a, b) => a.player_number - b.player_number)[0];
+      if (!nextCandidate) {
+        setError("No player is available in sequence order.");
+        return;
+      }
+      playerId = nextCandidate.id;
+    } else {
+      playerId = candidates[Math.floor(Math.random() * candidates.length)].id;
     }
     if (playerId === currentPlayer?.id) {
       setError("That player is already on the auction block.");
       return;
     }
     await action({ action: "select_player", playerId });
+  }
+
+  async function reauctionUnsoldPlayers() {
+    const succeeded = await action({ action: "reauction_unsold" });
+    if (succeeded) {
+      setMessage("All unsold players are available again.");
+    }
   }
 
   async function selectPlayerFromTable(player: Player) {
@@ -462,8 +557,22 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     if (succeeded) setPendingReauctionPlayer(null);
   }
 
-  async function skipCurrentPlayer() {
-    await action({ action: "skip_player" });
+  async function applyTeamRTM(team: Team) {
+    if (!data || !pendingRTMPlayer || pendingRTMPlayer.status !== "sold" || !pendingRTMPlayer.sold_team_id) return;
+    const soldPlayer = pendingRTMPlayer;
+    const soldCount = (data.players ?? []).filter((player) => player.status === "sold" && player.sold_team_id === team.id).length;
+    const reserve = Math.max((data.tournament.min_squad_size ?? 0) - soldCount - 1, 0) * (data.tournament.base_price ?? 0);
+    const rtmBoost = (team.rtm_count ?? 0) * (data.tournament.base_price ?? 0);
+    const maxBid = Math.max(0, Number(team.points_remaining) - reserve + rtmBoost);
+    if ((team.rtm_count ?? 0) <= 0 || team.id === soldPlayer.sold_team_id || Number(soldPlayer.sold_price ?? 0) > maxBid) {
+      setError(`${team.name} is not eligible for RTM.`);
+      return;
+    }
+    const succeeded = await action({ action: "rtm", playerId: soldPlayer.id, teamId: team.id });
+    if (succeeded) {
+      setPendingRTMPlayer(null);
+      setMessage(`${team.name} applied RTM for ${soldPlayer.full_name}.`);
+    }
   }
 
   async function placeTeamBid(team: Team) {
@@ -606,12 +715,13 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <form onSubmit={addTeam} className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-bold text-slate-600">Team name<input value={teamName} onChange={(event) => setTeamName(event.target.value)} className={inputClass} maxLength={120} required /></label>
               <label className="text-xs font-bold text-slate-600">Logo image URL or upload<input value={teamLogo} onChange={(event) => setTeamLogo(event.target.value)} className={inputClass} placeholder="https://…" /></label>
+              <label className="text-xs font-bold text-slate-600">RTM count<input type="number" min="0" step="1" value={teamRTM} onChange={(event) => setTeamRTM(event.target.value)} className={inputClass} /></label>
               <div className="flex items-center gap-3 sm:col-span-2">
                 <label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Upload logo<input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => void uploadLogo(event, "team")} /></label>
                 <button disabled={busy || data.tournament.status !== "setup"} className={buttonClass}>Add team</button>
               </div>
             </form>
-            <div className="mt-4 grid gap-2">{data.teams.map((team) => <div key={team.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex min-w-0 items-center gap-3"><TeamMark name={team.name} logoUrl={team.logo_url} size="sm" /><div><p className="font-bold text-slate-900">{team.name}</p><p className="text-xs text-slate-500">{team.points_remaining} pts remaining</p></div></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => setEditingTeam({ id: team.id, name: team.name, logo_url: team.logo_url })} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit team</button><button type="button" disabled={busy || data.tournament.status !== "setup"} onClick={() => void deleteTeam(team)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button></div></div>)}</div>
+            <div className="mt-4 grid gap-2">{data.teams.map((team) => <div key={team.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex min-w-0 items-center gap-3"><TeamMark name={team.name} logoUrl={team.logo_url} size="sm" /><div><p className="font-bold text-slate-900">{team.name}</p><p className="text-xs text-slate-500">{team.points_remaining} pts remaining</p>{(team.rtm_count ?? 0) > 0 && <p className="text-[10px] font-bold uppercase text-amber-700">RTM x{team.rtm_count}</p>}</div></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => setEditingTeam({ id: team.id, name: team.name, logo_url: team.logo_url, rtm_count: team.rtm_count ?? 0 })} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit team</button><button type="button" disabled={busy || data.tournament.status !== "setup"} onClick={() => void deleteTeam(team)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button></div></div>)}</div>
             {data.tournament.status !== "setup" && <p className="mt-3 text-xs text-slate-500">Team names and logos remain editable after the auction begins. Adding or deleting teams is available before it starts.</p>}
           </section>
 
@@ -675,30 +785,45 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           </div>
 
           {data.tournament.status === "live" && (
-            <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1.1fr]">
-              <div className="rounded-xl bg-slate-50 p-4">
-                <h3 className="font-extrabold text-slate-900">Call a player</h3>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-600">Selection method<select value={selectionMode} onChange={(event) => setSelectionMode(event.target.value)} className={inputClass}><option value="random">Random available player</option><option value="number">By player number</option><option value="category">Random by category</option><option value="unsold">Re-auction unsold player</option></select></label>
-                  {selectionMode === "number" ? <label className="text-xs font-bold text-slate-600">Player number<input type="number" min={1} value={selectedPlayerNumber} onChange={(event) => setSelectedPlayerNumber(event.target.value)} className={inputClass} placeholder="Enter player number" /><span className="mt-1 block font-normal">{numberSelectedPlayer ? `${numberSelectedPlayer.full_name} · ${numberSelectedPlayer.category} · ${numberSelectedPlayer.status}` : "Enter any player number to call or re-auction"}</span></label> :
-                    <label className="text-xs font-bold text-slate-600">Category<select value={selectionCategory} onChange={(event) => setSelectionCategory(event.target.value)} className={inputClass}><option value="">All categories</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>}
-                  <button className={`${buttonClass} sm:col-span-2`} disabled={busy || pendingBids > 0 || (selectionMode === "number" ? !numberSelectedPlayer || numberSelectedPlayer.id === currentPlayer?.id : selectionMode === "unsold" ? unsoldPlayers === 0 : availablePlayers.length === 0)} onClick={() => void selectPlayer()}>{selectionMode === "number" ? numberSelectedPlayer?.status === "sold" || numberSelectedPlayer?.status === "unsold" ? "Re-auction selected player" : "Call selected player" : selectionMode === "unsold" ? "Pick an unsold player" : selectionMode === "category" ? "Pick player from category" : "Pick random player"}</button>
-                  {selectionMode === "random" && currentPlayer && <p className="text-xs text-slate-600 sm:col-span-2">Calling another random player replaces the current player without marking them sold or unsold.</p>}
+            <>
+              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.15em] text-orange-700">Next player</p>
+                    <h3 className="mt-1 text-lg font-extrabold text-slate-900">Player selection</h3>
+                  </div>
                 </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-bold text-slate-600">Selection method<select value={selectionMode} onChange={(event) => setSelectionMode(event.target.value)} className={inputClass}><option value="random">Random</option><option value="sequence">Sequence</option></select></label>
+                  <label className="text-xs font-bold text-slate-600">Category<select value={selectionCategory} onChange={(event) => setSelectionCategory(event.target.value)} className={inputClass}><option value="">All categories</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
+                </div>
+                {selectionMode === "random" && currentPlayer && <p className="mt-3 text-xs text-slate-600">Calling another random player replaces the current player without marking them sold or unsold.</p>}
+                {selectionMode === "sequence" && currentPlayer && <p className="mt-3 text-xs text-slate-600">Sequence calls the next available player in ascending player-number order.</p>}
                 {availablePlayers.length === 0 && <p className="mt-3 text-sm font-semibold text-slate-600">No available players remain.</p>}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-black text-orange-800" disabled={busy || unsoldPlayers === 0} onClick={() => void reauctionUnsoldPlayers()}>Re-auction unsold players</button>
+                </div>
               </div>
-              <div className="rounded-xl bg-slate-50 p-4">
+              <div className="mt-5 rounded-xl bg-slate-50 p-4">
                 <h3 className="font-extrabold text-slate-900">Current bid</h3>
                 {currentPlayer ? <>
                   <div className="relative mt-3 flex items-center gap-4 overflow-hidden rounded-xl border border-slate-200 bg-white p-4">
-                    {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.status} />}
+                    {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} />}
                     {currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt="" width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}
                     <div><p className="text-xs font-bold uppercase text-orange-700">Player #{currentPlayer.player_number} · {currentPlayer.category}</p><p className="mt-1 text-xl font-black text-slate-950">{currentPlayer.full_name}</p><p className="text-sm text-slate-600">{currentPlayer.role || "Player"}{currentPlayer.previous_team ? ` · ${currentPlayer.previous_team}` : ""}</p></div>
                   </div>
-                  {currentPlayer.status === "sold" ? <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-2xl font-black text-slate-950">{currentPlayer.sold_price ?? 0} points</p>
-                    <p className="text-sm text-slate-600">Sold to {data.teams.find((team) => team.id === currentPlayer.sold_team_id)?.name ?? "team"}.</p>
-                  </div> : currentPlayer.status === "unsold" ? null : <>
+                  {currentPlayer.status === "sold" ? <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                    <div>
+                      <p className="text-2xl font-black text-slate-950">{currentPlayer.sold_price ?? 0} points</p>
+                      <p className="text-sm text-slate-600">Sold to {soldTeam?.name ?? "team"}.</p>
+                    </div>
+                    <button type="button" disabled={busy} className="w-full rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800" onClick={() => setPendingRTMPlayer(currentPlayer)}>RTM</button>
+                    <button type="button" disabled={busy} className="w-full rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-black text-orange-800" onClick={() => void action({ action: "select_player", playerId: currentPlayer.id })}>Re-auction this player</button>
+                    <button className={buttonClass + " w-full"} disabled={busy || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Next Player</button>
+                  </div> : currentPlayer.status === "unsold" ? <div className="mt-4 flex flex-wrap gap-2">
+                    <button className={buttonClass} disabled={busy || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Next Player</button>
+                    <button type="button" disabled={busy} className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-black text-orange-800" onClick={() => void reauctionUnsoldPlayers()}>Re-auction all unsold</button>
+                  </div> : <>
                     <p className="mt-4 text-3xl font-black text-slate-950">{data.tournament.current_bid ?? data.tournament.base_price} <span className="text-sm font-bold text-slate-500">points</span></p>
                     <p className="text-sm text-slate-600">{currentTeam ? `Highest bid: ${currentTeam.name}` : "No bids yet"}</p>
                     <label className="mt-3 block text-xs font-bold text-slate-600">Bid amount (uses the matching increment range)<div className="mt-1 flex overflow-hidden rounded-lg border border-slate-300 bg-white"><button type="button" onClick={() => adjustBid("down")} disabled={Number(bidAmount) <= minimumSelectableBid} className="w-10 border-r border-slate-300 text-lg font-black text-slate-700 disabled:opacity-40">−</button><input value={bidAmount} onChange={(event) => setBidDraft({ key: bidDraftKey, value: event.target.value })} onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); adjustBid(event.key === "ArrowUp" ? "up" : "down"); } }} type="number" min={minimumSelectableBid} step="any" className="bid-amount h-10 min-w-0 flex-1 px-3 text-sm font-normal outline-none" /><button type="button" onClick={() => adjustBid("up")} className="w-10 border-l border-slate-300 text-lg font-black text-slate-700">+</button></div></label>
@@ -708,23 +833,41 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
                       <div className="mt-2 flex flex-wrap gap-2">{data.teams.map((team) => <button key={team.id} disabled={Number(bidAmount) < minimumSelectableBid || Number(bidAmount) > maximumBidForTeam(team)} title={`Maximum bid ${maximumBidForTeam(team)} · reserve ${reserveForTeam(team)}`} className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-xs font-extrabold text-orange-800 hover:bg-orange-50 disabled:opacity-40" onClick={() => void placeTeamBid(team)}>{team.name}</button>)}</div>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
+                      <button className={buttonClass} disabled={busy || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Next Player</button>
                       <button disabled={busy || pendingBids > 0 || !data.tournament.current_bid_team_id} className={buttonClass} onClick={() => void action({ action: "finalize", result: "sold" })}>Sold</button>
                       <button disabled={busy || pendingBids > 0} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold" onClick={() => void action({ action: "finalize", result: "unsold" })}>Unsold</button>
-                      <button disabled={busy || pendingBids > 0} className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-900" onClick={() => void skipCurrentPlayer()}>SKIP</button>
                     </div>
                   </>}
                 </> : <p className="mt-3 rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-600">No player is currently on the auction block.</p>}
               </div>
-            </div>
+            </>
           )}
         </section>}
 
         {view === "run" && <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-5"><h2 className="font-black text-slate-900">Player pool status</h2></div>
+          <div className="border-b border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Filter</label>
+                <select value={playerPoolSearchMode} onChange={(event) => setPlayerPoolSearchMode(event.target.value as "name" | "number")} className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700">
+                  <option value="name">Search by Name</option>
+                  <option value="number">Search by Player Number</option>
+                </select>
+                <input
+                  value={playerPoolFilter}
+                  onChange={(event) => setPlayerPoolFilter(event.target.value)}
+                  placeholder={playerPoolSearchMode === "name" ? "Search player name…" : "Search player number…"}
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500"
+                />
+              </div>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{filteredPlayerPool.length} results</p>
+            </div>
+          </div>
           <div className="max-h-[480px] overflow-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="sticky top-0 bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="p-3">#</th><th className="p-3">Player</th><th className="p-3">Category</th><th className="p-3">Status</th><th className="p-3">Team</th><th className="p-3">Sold for</th><th className="p-3">Actions</th></tr></thead>
-              <tbody>{data.players.map((player) => <tr key={player.id} className={`border-t border-slate-100 ${currentPlayer?.id === player.id ? "bg-orange-50" : ""}`}><td className="p-3 font-bold">{player.player_number}</td><td className="p-3 font-semibold">{player.full_name}</td><td className="p-3">{player.category}</td><td className="p-3 capitalize">{player.status}</td><td className="p-3">{data.teams.find((team) => team.id === player.sold_team_id)?.name ?? "—"}</td><td className="p-3">{player.sold_price ?? "—"}</td><td className="flex gap-2 p-3"><button type="button" disabled={busy || data.tournament.status !== "live" || currentPlayer?.id === player.id} onClick={() => void selectPlayerFromTable(player)} className="rounded-lg border border-orange-200 px-2 py-1 text-xs font-bold text-orange-800 disabled:opacity-50">{currentPlayer?.id === player.id ? "On block" : player.status === "available" ? "Call player" : "Re-auction"}</button><button type="button" disabled={busy} onClick={() => setEditingPlayer({ id: player.id, player_number: player.player_number, full_name: player.full_name, category: player.category, role: player.role, batting_style: player.batting_style, bowling_style: player.bowling_style, previous_team: player.previous_team, photo_url: player.photo_url })} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-bold disabled:opacity-50">Edit</button></td></tr>)}</tbody>
+              <tbody>{filteredPlayerPool.map((player) => <tr key={player.id} className={`border-t border-slate-100 ${currentPlayer?.id === player.id ? "bg-orange-50" : ""}`}><td className="p-3 font-bold">{player.player_number}</td><td className="p-3 font-semibold">{player.full_name}</td><td className="p-3">{player.category}</td><td className="p-3 capitalize">{player.status}</td><td className="p-3">{data.teams.find((team) => team.id === player.sold_team_id)?.name ?? "—"}</td><td className="p-3">{player.sold_price ?? "—"}</td><td className="flex gap-2 p-3"><button type="button" disabled={busy || data.tournament.status !== "live" || currentPlayer?.id === player.id} onClick={() => void selectPlayerFromTable(player)} className="rounded-lg border border-orange-200 px-2 py-1 text-xs font-bold text-orange-800 disabled:opacity-50">{currentPlayer?.id === player.id ? "On block" : player.status === "available" ? "Call player" : "Re-auction"}</button><button type="button" disabled={busy} onClick={() => setEditingPlayer({ id: player.id, player_number: player.player_number, full_name: player.full_name, category: player.category, role: player.role, batting_style: player.batting_style, bowling_style: player.bowling_style, previous_team: player.previous_team, photo_url: player.photo_url })} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-bold disabled:opacity-50">Edit</button></td></tr>)}</tbody>
             </table>
           </div>
         </section>}
@@ -733,6 +876,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-wide text-orange-700">Team settings</p><h2 className="mt-1 text-xl font-black text-slate-950">Update team</h2></div><button type="button" onClick={() => setEditingTeam(null)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">Close</button></div>
             <label className="mt-5 block text-xs font-bold text-slate-600">Team name<input value={editingTeam.name} onChange={(event) => setEditingTeam({ ...editingTeam, name: event.target.value })} className={inputClass} maxLength={120} required /></label>
             <label className="mt-3 block text-xs font-bold text-slate-600">Team logo URL<input value={editingTeam.logo_url ?? ""} onChange={(event) => setEditingTeam({ ...editingTeam, logo_url: event.target.value || null })} className={inputClass} placeholder="https://…" /></label>
+            <label className="mt-3 block text-xs font-bold text-slate-600">RTM count<input type="number" min="0" step="1" value={editingTeam.rtm_count ?? 0} onChange={(event) => setEditingTeam({ ...editingTeam, rtm_count: Number(event.target.value) || 0 })} className={inputClass} /></label>
             <div className="mt-3 flex items-center gap-3"><label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Upload logo<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} className="sr-only" onChange={(event) => void uploadEditedTeamLogo(event)} /></label><TeamMark name={editingTeam.name} logoUrl={editingTeam.logo_url} size="sm" /></div>
             <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => setEditingTeam(null)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold">Cancel</button><button disabled={busy} className={buttonClass}>{busy ? "Saving…" : "Save team"}</button></div>
           </form>
@@ -746,6 +890,32 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <div className="mt-3 flex items-center gap-3"><label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Upload logo<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} className="sr-only" onChange={(event) => void uploadEditedSponsorLogo(event)} /></label>{editingSponsor.logo_url && <AuctionImage src={editingSponsor.logo_url} alt="Sponsor logo preview" width={32} height={32} className="h-8 w-8 object-contain" />}</div>
             <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => setEditingSponsor(null)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold">Cancel</button><button disabled={busy} className={buttonClass}>{busy ? "Saving…" : "Save sponsor"}</button></div>
           </form>
+        </div>}
+        {pendingRTMPlayer && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPendingRTMPlayer(null); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="rtm-title" className="w-full max-w-xl animate-in zoom-in-95 rounded-2xl border border-white/70 bg-white p-6 shadow-2xl duration-200">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-amber-700">RTM</p>
+                <h2 id="rtm-title" className="mt-1 text-xl font-black text-slate-950">Choose a team for {pendingRTMPlayer.full_name}</h2>
+              </div>
+              <button type="button" disabled={busy} onClick={() => setPendingRTMPlayer(null)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Close</button>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">Only teams that still have RTM available and can afford the current price are enabled.</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {data.teams.filter((team) => team.id !== pendingRTMPlayer.sold_team_id).map((team) => {
+                const soldCount = (data.players ?? []).filter((player) => player.status === "sold" && player.sold_team_id === team.id).length;
+                const reserve = Math.max((data.tournament.min_squad_size ?? 0) - soldCount - 1, 0) * (data.tournament.base_price ?? 0);
+                const maximumBid = Math.max(0, Number(team.points_remaining) - reserve + (team.rtm_count ?? 0) * (data.tournament.base_price ?? 0));
+                const isEligible = (team.rtm_count ?? 0) > 0 && Number(pendingRTMPlayer.sold_price ?? 0) <= maximumBid;
+                return <button key={team.id} type="button" disabled={busy || !isEligible} onClick={() => void applyTeamRTM(team)} className={`rounded-xl border p-3 text-left transition ${isEligible ? "border-amber-300 bg-amber-50 text-amber-900 hover:border-amber-400" : "border-slate-200 bg-slate-100 text-slate-400 opacity-60"}`}>
+                  <div className="flex items-center justify-between gap-3"><span className="font-bold">{team.name}</span>{(team.rtm_count ?? 0) > 0 ? <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700">RTM x{team.rtm_count}</span> : <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Exhausted</span>}</div>
+                  <p className="mt-2 text-xs">Max bid: {maximumBid}</p>
+                  <p className="text-xs">Balance: {team.points_remaining} pts</p>
+                </button>;
+              })}
+            </div>
+            {data.teams.filter((team) => team.id !== pendingRTMPlayer.sold_team_id).length === 0 && <p className="mt-5 text-sm text-slate-600">There are no other teams in this tournament.</p>}
+          </section>
         </div>}
         {pendingReauctionPlayer && <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPendingReauctionPlayer(null); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="reauction-title" className="w-full max-w-md animate-in zoom-in-95 rounded-2xl border border-white/70 bg-white p-6 shadow-2xl duration-200">

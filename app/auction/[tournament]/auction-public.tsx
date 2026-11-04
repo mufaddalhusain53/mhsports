@@ -7,11 +7,11 @@ import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
 import { supabase } from "@/lib/supabase/client";
 
-type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number };
+type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
 type Player = {
   id: string; player_number: number; full_name: string; category: string; role: string | null;
   batting_style: string | null; bowling_style: string | null; previous_team: string | null; photo_url: string | null;
-  status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null;
+  status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null; rtm_team_id: string | null;
 };
 type Sponsor = { id: string; name: string; logo_url: string | null; website_url: string | null };
 type Tournament = {
@@ -28,6 +28,12 @@ const inputClass = "mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white
 
 function formatPoints(value: number | null | undefined) {
   return value === null || value === undefined ? "—" : Number(value).toLocaleString("en-IN");
+}
+
+function getMaxBid(pointsRemaining: number, soldCount: number, minSquadSize: number, basePrice: number, rtmCount = 0) {
+  const remainingPlayers = Math.max(minSquadSize - soldCount, 0);
+  const reserve = Math.max(remainingPlayers - 1, 0) * basePrice;
+  return Math.max(0, pointsRemaining - reserve + rtmCount * basePrice);
 }
 
 export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; view: View; teamSlug?: string }) {
@@ -97,7 +103,8 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
   const team = data?.teams.find((item) => item.slug === selectedTeamSlug);
   const currentPlayer = data?.players.find((player) => player.id === data.tournament.current_player_id);
   const currentBidTeam = data?.teams.find((item) => item.id === data.tournament.current_bid_team_id);
-  const categories = useMemo(() => Array.from(new Set((data?.players ?? []).map((player) => player.category))).sort(), [data]);
+  const categories = useMemo(() => Array.from(new Set((data?.players ?? []).map((player) => player.category.trim()).filter((value) => value && value.toUpperCase() !== "NONE"))).sort(), [data]);
+  const shouldDisplayCategory = categories.length > 1;
   const filteredPlayers = useMemo(() => {
     if (!data) return [];
     const query = search.trim().toLocaleLowerCase();
@@ -118,12 +125,13 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
   const activePlayers = players.filter((player) => player.status === "available").length;
   function PlayerCard({ player }: { player: Player }) {
     const soldTeam = teams.find((item) => item.id === player.sold_team_id);
+    const playerRole = player.role || (shouldDisplayCategory ? player.category : null);
     return (
       <article className={`relative min-h-36 overflow-hidden rounded-xl border p-3 shadow-md backdrop-blur-sm ${player.status === "sold" ? "border-green-400/60 bg-gradient-to-r from-green-900/80 to-slate-900/75 text-white" : player.status === "unsold" ? "border-red-300/70 bg-gradient-to-r from-red-900/75 to-slate-900/75 text-white" : "border-white/30 bg-slate-950/55 text-white"}`}>
         <span className={`absolute left-0 top-0 rounded-br-lg px-2 py-1 text-xs font-black ${player.status === "sold" ? "bg-green-500" : player.status === "unsold" ? "bg-red-400 text-red-950" : "bg-slate-300 text-slate-900"}`}>#{player.player_number}</span>
         <div className="flex gap-3 pt-2">
           {player.photo_url ? <AuctionImage src={player.photo_url} alt="" width={80} height={80} className="h-20 w-20 shrink-0 rounded-lg border border-white/40 object-cover" /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-white/15 text-2xl" aria-hidden="true">🏏</div>}
-          <div className="min-w-0 flex-1"><h3 className="truncate text-base font-black text-yellow-300">{player.full_name}</h3><p className="mt-1 text-sm font-semibold">{player.role || player.category}</p><p className="text-xs text-white/85">{player.batting_style || "—"}</p><p className="text-xs text-white/85">{player.bowling_style || "—"}</p></div>
+          <div className="min-w-0 flex-1"><h3 className="truncate text-base font-black text-yellow-300">{player.full_name}</h3>{playerRole && <p className="mt-1 text-sm font-semibold">{playerRole}</p>}<p className="text-xs text-white/85">{player.batting_style || "—"}</p><p className="text-xs text-white/85">{player.bowling_style || "—"}</p></div>
         </div>
         <div className="mt-2 border-t border-white/20 pt-1 text-xs font-black uppercase">{player.status === "sold" ? `${soldTeam?.name ?? "Team"} · ${formatPoints(player.sold_price)} pts` : player.status === "unsold" ? "Unsold" : "Available"}</div>
       </article>
@@ -137,10 +145,10 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
   function AuctionPane() {
     return <div className="h-[250px] self-start rounded-2xl border border-white/30 bg-slate-950/45 p-5 text-white shadow-lg backdrop-blur-md">
       {currentPlayer && <div className="relative">
-        {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.status} className="right-0 top-0" />}
-        <div className="flex items-center gap-3">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}<div><p className="text-xl font-black">{currentPlayer.full_name}</p><p className="text-sm text-white/80">#{currentPlayer.player_number} · {currentPlayer.category}</p><p className="text-xs text-white/70">{[currentPlayer.role, currentPlayer.batting_style, currentPlayer.bowling_style].filter(Boolean).join(" · ")}</p>{currentPlayer.previous_team && <p className="text-xs text-white/70">Played team last year · {currentPlayer.previous_team}</p>}</div></div>
+        {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="right-0 top-0" />}
+        <div className="flex items-center gap-3">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}<div><p className="text-xl font-black">{currentPlayer.full_name}</p><p className="text-sm text-white/80">#{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}</p>{[currentPlayer.role, currentPlayer.batting_style, currentPlayer.bowling_style].filter(Boolean).length > 0 && <p className="text-xs text-white/70">{[currentPlayer.role, currentPlayer.batting_style, currentPlayer.bowling_style].filter(Boolean).join(" · ")}</p>}{currentPlayer.previous_team && <p className="text-xs text-white/70">Team Last Year ({currentPlayer.previous_team})</p>}</div></div>
         {currentPlayer.status !== "unsold" && <div className="mt-4 flex items-baseline gap-2"><span className="text-3xl font-black">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? tournament.base_price)}</span><span className="text-sm font-bold text-white/75">points</span></div>}
-        {currentBidTeam && currentPlayer.status === "available" ? <div className="mt-2 flex items-center gap-2 text-sm font-bold text-white/90"><TeamMark name={currentBidTeam.name} logoUrl={currentBidTeam.logo_url} size="sm" /><span>Highest bid · {currentBidTeam.name}</span></div> : <p className="mt-1 text-sm text-white/80">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : "No bids yet"}</p>}
+        {currentBidTeam && currentPlayer.status === "available" ? <div className="mt-2 flex items-center gap-2 text-sm font-bold text-white/90"><TeamMark name={currentBidTeam.name} logoUrl={currentBidTeam.logo_url} size="sm" /><span>{currentBidTeam.name}</span></div> : <p className="mt-1 text-sm text-white/80">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : "No bids yet"}</p>}
       </div>}
     </div>;
   }
@@ -167,11 +175,11 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
           {[['Sold', soldPlayers.length, 'border-green-300 bg-green-50 text-green-800'], ['Unsold', players.filter((player) => player.status === 'unsold').length, 'border-red-200 bg-red-50 text-red-700'], ['Avl', activePlayers, 'border-slate-300 bg-slate-100 text-slate-700']].map(([label, value, colors]) => <span key={String(label)} className={`inline-flex items-center rounded-full border px-3 py-2 text-xs font-black uppercase ${colors}`}><strong className="mr-1">{value}</strong>{label}</span>)}
         </nav>
         {currentPlayer && !currentPlayer.id && <section className="relative mb-6 rounded-2xl border border-orange-300 bg-orange-50 p-5 shadow-sm">
-          {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.status} />}
+          {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} />}
           <p className="text-xs font-black uppercase tracking-[0.15em] text-orange-800">{currentPlayer.status === "available" ? "On the auction block now" : "Auction result"}</p>
           <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-4">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={`${currentPlayer.full_name}`} width={80} height={80} className="h-20 w-20 rounded-xl object-cover" />}<div><h2 className="text-2xl font-black">{currentPlayer.full_name}</h2><p className="mt-1 text-sm text-slate-700">#{currentPlayer.player_number} · {currentPlayer.category}{currentPlayer.role ? ` · ${currentPlayer.role}` : ""}</p></div></div>
-            <div className="sm:text-right">{currentPlayer.status !== "unsold" && <p className="text-2xl font-black">{currentPlayer.status === "sold" ? formatPoints(currentPlayer.sold_price) : formatPoints(tournament.current_bid ?? tournament.base_price)} pts</p>}<p className="text-sm text-slate-600">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : currentBidTeam ? `Highest bid · ${currentBidTeam.name}` : "No bids yet"}</p></div>
+            <div className="flex items-center gap-4">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={`${currentPlayer.full_name}`} width={80} height={80} className="h-20 w-20 rounded-xl object-cover" />}<div><h2 className="text-2xl font-black">{currentPlayer.full_name}</h2><p className="mt-1 text-sm text-slate-700">#{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}{currentPlayer.role ? ` · ${currentPlayer.role}` : ""}</p></div></div>
+            <div className="sm:text-right">{currentPlayer.status !== "unsold" && <p className="text-2xl font-black">{currentPlayer.status === "sold" ? formatPoints(currentPlayer.sold_price) : formatPoints(tournament.current_bid ?? tournament.base_price)} pts</p>}<p className="text-sm text-slate-600">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : currentBidTeam ? currentBidTeam.name : "No bids yet"}</p></div>
           </div>
         </section>}
 
@@ -180,11 +188,11 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
             <AuctionPane />
             {currentPlayer && !currentPlayer.id && <div className="rounded-2xl border border-white/30 bg-slate-950/60 p-6 text-white shadow-lg backdrop-blur-md">
               {currentPlayer && <div className="relative mt-5 border-t border-white/20 pt-4">
-                {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.status} className="right-0 top-3" />}
+                {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="right-0 top-3" />}
                 <p className="text-xs font-bold uppercase tracking-wider text-orange-200">{currentPlayer.status === "available" ? "Now on the auction block" : "Auction result"}</p>
-                <div className="mt-2 flex items-center gap-3">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}<div><p className="text-xl font-black">{currentPlayer.full_name}</p><p className="text-sm text-white/80">#{currentPlayer.player_number} · {currentPlayer.category}</p></div></div>
+                <div className="mt-2 flex items-center gap-3">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}<div><p className="text-xl font-black">{currentPlayer.full_name}</p><p className="text-sm text-white/80">#{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}</p></div></div>
                 {currentPlayer.status !== "unsold" && <div className="mt-4 flex items-end justify-between gap-2"><span className="text-3xl font-black">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? tournament.base_price)}</span><span className="pb-1 text-sm font-bold text-white/75">points</span></div>}
-                <p className="mt-1 text-sm text-white/80">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : currentBidTeam ? `Highest bid · ${currentBidTeam.name}` : "No bids yet"}</p>
+                <p className="mt-1 text-sm text-white/80">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : currentBidTeam ? currentBidTeam.name : "No bids yet"}</p>
               </div>}
               <div className="mt-5 grid grid-cols-3 gap-2 border-t border-white/20 pt-4 text-center">
                 {[["Sold", soldPlayers.length], ["Unsold", players.filter((player) => player.status === "unsold").length], ["Available", activePlayers]].map(([label, value]) => <div key={label}><p className="text-xl font-black">{value}</p><p className="text-[10px] font-bold uppercase tracking-wider text-white/70">{label}</p></div>)}
@@ -199,10 +207,11 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {teams.map((item) => {
                 const roster = soldPlayers.filter((player) => player.sold_team_id === item.id);
+                const maxBid = getMaxBid(item.points_remaining, roster.length, tournament.min_squad_size, tournament.base_price, item.rtm_count ?? 0);
                 return <button type="button" key={item.id} onClick={() => setSelectedTeamSlug(item.slug)} className="flex min-w-0 items-center gap-3 rounded-xl border border-white/30 bg-white/55 p-3 text-left transition hover:bg-white/75 focus:outline-none focus:ring-2 focus:ring-orange-400">
                   <TeamMark name={item.name} logoUrl={item.logo_url} />
                   <div className="min-w-0 flex-1"><p className="truncate text-xs font-black uppercase text-slate-800">{item.name}</p><p className="mt-1 text-lg font-black text-orange-700">{roster.length}/{tournament.min_squad_size}</p></div>
-                  <div className="text-right"><p className="text-lg font-black text-orange-700">{formatPoints(item.points_remaining)}</p><p className="text-[10px] font-bold uppercase text-green-700">Remaining</p><p className="mt-1 text-[11px] font-semibold text-slate-600">Spent {formatPoints(tournament.points_per_team - item.points_remaining)}</p></div>
+                  <div className="text-right"><p className="text-lg font-black text-green-700">{formatPoints(item.points_remaining)}</p><p className="mt-1 text-[11px] font-semibold text-slate-600">Max {formatPoints(maxBid)}</p>{(item.rtm_count ?? 0) > 0 && <p className="mt-1 text-[10px] font-bold uppercase text-slate-500">RTM x{item.rtm_count}</p>}</div>
                 </button>;
               })}
             </div>
@@ -213,7 +222,12 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
           <button type="button" onClick={() => setSelectedTeamSlug("")} className="mb-4 rounded-lg border border-white/30 bg-slate-950/60 px-4 py-2 text-sm font-bold text-white hover:bg-slate-950/75">← All teams</button>
           <section className="flex flex-col justify-between gap-5 rounded-2xl border border-white/30 bg-slate-950/25 p-5 text-white shadow-lg sm:flex-row sm:items-center">
             <div className="flex items-center gap-4"><TeamMark name={team.name} logoUrl={team.logo_url} size="lg" /><div><h2 className="text-2xl font-black">{team.name}</h2></div></div>
-            <div className="grid grid-cols-3 gap-3"><div className="rounded-lg border border-white/20 bg-slate-950/25 p-3"><p className="text-xs font-bold uppercase text-white/70">Remaining</p><p className="text-xl font-black">{formatPoints(team.points_remaining)}</p></div><div className="rounded-lg border border-white/20 bg-slate-950/25 p-3"><p className="text-xs font-bold uppercase text-white/70">Spent</p><p className="text-xl font-black">{formatPoints(tournament.points_per_team - team.points_remaining)}</p></div><div className="rounded-lg border border-white/20 bg-slate-950/25 p-3"><p className="text-xs font-bold uppercase text-white/70">Players</p><p className="text-xl font-black">{players.filter((player) => player.sold_team_id === team.id).length}/{tournament.min_squad_size}</p></div></div>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="rounded-lg border border-white/20 bg-slate-950/25 p-3 text-center"><p className="text-xs font-bold uppercase text-white/70">Remaining</p><p className="mt-2 text-xl font-black">+{formatPoints(team.points_remaining)}</p></div>
+              <div className="rounded-lg border border-white/20 bg-slate-950/25 p-3 text-center"><p className="text-xs font-bold uppercase text-white/70">Max</p><p className="mt-2 text-xl font-black">{formatPoints(getMaxBid(team.points_remaining, players.filter((player) => player.sold_team_id === team.id).length, tournament.min_squad_size, tournament.base_price, team.rtm_count ?? 0))}</p></div>
+              <div className="rounded-lg border border-white/20 bg-slate-950/25 p-3 text-center"><p className="text-xs font-bold uppercase text-white/70">Players</p><p className="mt-2 text-xl font-black">{players.filter((player) => player.sold_team_id === team.id).length}/{tournament.min_squad_size}</p>{(team.rtm_count ?? 0) > 0 && <p className="mt-2 text-[11px] font-bold uppercase text-white/70">RTM x{team.rtm_count}</p>}</div>
+              <div className="rounded-lg border border-white/20 bg-slate-950/25 p-3 text-center"><p className="text-xs font-bold uppercase text-white/70">Spent</p><p className="mt-2 text-xl font-black">-{formatPoints(tournament.points_per_team - team.points_remaining)}</p></div>
+            </div>
           </section>
           <div className="mt-7 grid gap-3 sm:grid-cols-2">{filteredPlayers.length ? filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} />) : <p className={`${cardClass} text-slate-600`}>Team yet to pick players.</p>}</div>
         </>}

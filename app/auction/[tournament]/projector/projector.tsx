@@ -6,15 +6,15 @@ import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
 import { supabase } from "@/lib/supabase/client";
 
-type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number };
+type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
 type Player = {
   id: string; player_number: number; full_name: string; category: string; role: string | null;
   batting_style: string | null; bowling_style: string | null; previous_team: string | null; photo_url: string | null;
-  status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null;
+  status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null; rtm_team_id: string | null;
 };
 type Sponsor = { id: string; name: string; logo_url: string | null };
 type Tournament = {
-  id: string; slug: string; name: string; status: string; points_per_team: number; base_price: number;
+  id: string; slug: string; name: string; status: string; points_per_team: number; base_price: number; min_squad_size: number; max_squad_size: number;
   current_player_id: string | null; current_bid: number | null; current_bid_team_id: string | null;
   background_url: string | null; tournament_logo_url: string | null; organizer_logo_urls: string[];
 };
@@ -23,6 +23,12 @@ type Tab = "live" | "teams" | "players";
 
 function points(value: number | null | undefined) {
   return value === null || value === undefined ? "—" : Number(value).toLocaleString("en-IN");
+}
+
+function maxBid(pointsRemaining: number, soldCount: number, minSquadSize: number, basePrice: number, rtmCount = 0) {
+  const remainingPlayers = Math.max(minSquadSize - soldCount, 0);
+  const reserve = Math.max(remainingPlayers - 1, 0) * basePrice;
+  return Math.max(0, pointsRemaining - reserve + rtmCount * basePrice);
 }
 
 export default function AuctionProjector({ slug }: { slug: string }) {
@@ -118,11 +124,23 @@ export default function AuctionProjector({ slug }: { slug: string }) {
   const resultTeam = currentPlayer?.status === "sold"
     ? teams.find((team) => team.id === currentPlayer.sold_team_id)
     : undefined;
+  const activeTeam = currentTeam ?? resultTeam;
+  const activeTeamRoster = activeTeam ? players.filter((player) => player.status === "sold" && player.sold_team_id === activeTeam.id).length : 0;
   const soldPlayers = players.filter((player) => player.status === "sold");
   const organizerLogos = tournament.organizer_logo_urls ?? [];
   const sponsorLogos = sponsors.filter((sponsor) => sponsor.logo_url);
   const organizerLogo = organizerLogos.length ? organizerLogos[logoIndex % organizerLogos.length] : null;
   const sponsor = sponsorLogos.length ? sponsorLogos[logoIndex % sponsorLogos.length] : null;
+  const categoryValues = Array.from(new Set((players ?? []).map((player) => player.category.trim()).filter((value) => value && value.toUpperCase() !== "NONE")));
+  const shouldDisplayCategory = categoryValues.length > 1;
+  const roleValue = currentPlayer ? (currentPlayer.role ?? (shouldDisplayCategory ? currentPlayer.category : null)) : null;
+  const detailCards = currentPlayer ? [
+    { label: "Name", value: currentPlayer.full_name },
+    ...(roleValue ? [{ label: "Role", value: roleValue }] : []),
+    { label: "Batting", value: currentPlayer.batting_style ?? "—" },
+    { label: "Bowling", value: currentPlayer.bowling_style ?? "—" },
+    { label: "Last year team", value: currentPlayer.previous_team ?? "—" },
+  ] : [];
   const pageSize = tab === "teams" ? 6 : 12;
   const pageItems = tab === "teams" ? teams : filteredPlayers;
   const pageCount = Math.max(1, Math.ceil(pageItems.length / pageSize));
@@ -135,50 +153,66 @@ export default function AuctionProjector({ slug }: { slug: string }) {
 
   return (
     <main id="auction-projector" style={backgroundStyle} className="h-dvh w-screen overflow-hidden bg-slate-900 bg-cover bg-center text-white">
-      <div className="mx-auto flex h-full max-w-[1920px] flex-col gap-2 p-2 sm:gap-3 sm:p-3">
-        <header className="grid h-[11dvh] min-h-14 max-h-24 shrink-0 grid-cols-[1fr_2fr_1fr] items-center rounded-xl border border-white/30 bg-slate-950/20 px-3 shadow-lg sm:px-5">
-          <div className="flex h-full items-center justify-start">{organizerLogo && <AuctionImage src={organizerLogo} alt="Tournament organizer" width={160} height={90} className="max-h-[9dvh] max-w-full object-contain" />}</div>
+      <div className="mx-auto flex h-full max-w-[1920px] flex-col gap-0 p-0">
+        <header className="grid h-[20dvh] min-h-[150px] max-h-[250px] shrink-0 grid-cols-[1fr_auto_1fr] items-center rounded-none bg-transparent px-4 sm:px-6">
+          <div className="flex h-full items-center justify-start overflow-hidden">{organizerLogo && <AuctionImage src={organizerLogo} alt="Tournament organizer" width={520} height={520} className="h-[16dvh] max-h-[220px] w-auto max-w-[26vw] object-contain drop-shadow-[0_0_30px_rgba(255,178,80,0.35)]" />}</div>
           <div className="flex min-w-0 items-center justify-center gap-2 text-center sm:gap-4">
-            {tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt="" width={96} height={96} className="h-[8dvh] max-h-20 w-auto max-w-[18vw] object-contain" />}
-            <div className="min-w-0"><p className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-orange-200 sm:text-xs">Live auction</p><h1 className="mt-0.5 line-clamp-2 text-sm font-black sm:text-xl lg:text-2xl">{tournament.name}</h1></div>
+            {tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt="Tournament logo" width={760} height={760} className="h-[18dvh] max-h-[240px] w-auto max-w-[42vw] object-contain drop-shadow-[0_0_36px_rgba(255,178,80,0.4)]" />}
           </div>
-          <div className="flex h-full items-center justify-end gap-2">
-            {sponsor?.logo_url && <AuctionImage src={sponsor.logo_url} alt={sponsor.name} width={160} height={90} className="max-h-[8dvh] max-w-[75%] object-contain" />}
-            <button aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={fullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={() => void toggleFullscreen()} className="rounded-lg bg-orange-400 px-2 py-1.5 text-xs font-black text-slate-950 hover:bg-orange-300 sm:px-3">{fullscreen ? "Exit" : "⛶"}</button>
+          <div className="flex h-full items-center justify-end gap-3 overflow-hidden">
+            {sponsor?.logo_url && <AuctionImage src={sponsor.logo_url} alt={sponsor.name} width={520} height={520} className="h-[16dvh] max-h-[220px] w-auto max-w-[26vw] object-contain drop-shadow-[0_0_30px_rgba(255,178,80,0.35)]" />}
           </div>
         </header>
 
-        <nav className="flex h-[7dvh] min-h-10 max-h-14 shrink-0 items-center gap-2 rounded-xl border border-white/30 bg-slate-950/20 p-1.5 shadow-lg sm:p-2">
-          {([
-            ["live", "Live auction"],
-            ["teams", "Teams"],
-            ["players", "Players"],
-          ] as const).map(([key, label]) => <button key={key} onClick={() => { setTab(key); setListPage(0); }} className={`rounded-lg px-3 py-2 text-xs font-black uppercase tracking-wide transition sm:px-5 sm:py-3 sm:text-base ${tab === key ? "bg-orange-400 text-slate-950" : "text-white/85 hover:bg-white/10"}`}>{label}</button>)}
-          <div className="ml-auto hidden items-center gap-4 px-3 text-sm font-black uppercase sm:flex"><span className="text-green-300">Sold {soldPlayers.length}</span><span className="text-amber-200">Available {players.filter((player) => player.status === "available").length}</span></div>
-        </nav>
+        <section className="min-h-0 flex-1 overflow-hidden rounded-none bg-transparent p-0 relative">
+          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 rounded-full bg-slate-950/40 p-1.5 shadow-none backdrop-blur-none">
+            {([
+              ["live", "A"],
+              ["teams", "T"],
+              ["players", "P"],
+              ["fullscreen", "F"],
+            ] as const).map(([key, label]) => <button key={key} onClick={() => { if (key === "fullscreen") { void toggleFullscreen(); return; } setTab(key); setListPage(0); }} aria-label={key === "live" ? "Live auction" : key === "teams" ? "Teams" : key === "players" ? "Players" : "Fullscreen"} className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-black uppercase transition ${key === "fullscreen" ? "bg-orange-400 text-slate-950 shadow-none" : tab === key ? "bg-orange-400 text-slate-950 shadow-none" : "bg-slate-800/70 text-white/90 hover:bg-slate-700"}`}>{label}</button>)}
+          </div>
 
-        <section className="min-h-0 flex-1 overflow-hidden rounded-xl border border-white/30 bg-slate-950/10 p-2 shadow-2xl sm:p-4">
-          {tab === "live" && <div className="grid h-full min-h-0 items-stretch gap-2 lg:grid-cols-[1.45fr_0.8fr]">
-            <div className="relative flex min-h-0 flex-col justify-center overflow-hidden rounded-xl border border-white/30 bg-slate-950/10 p-3 text-center sm:p-5">
+          {tab === "live" && <div className="absolute bottom-4 left-4 z-10 flex items-end gap-6 text-center">
+            {([
+              ["Players", players.length],
+              ["Sold", soldPlayers.length],
+              ["Unsold", players.filter((player) => player.status === "unsold").length],
+              ["Available", players.filter((player) => player.status === "available").length],
+            ] as const).map(([label, value]) => <div key={label} className="flex flex-col items-center justify-end rounded-lg bg-transparent px-2 pb-0"><p className="text-3xl font-black leading-none sm:text-5xl">{value}</p><p className="mt-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/70 sm:text-[11px]">{label}</p></div>)}
+          </div>}
+
+          {tab === "live" && <div className="relative grid h-full min-h-0 items-stretch gap-1 lg:grid-cols-[1.7fr_0.9fr]">
+            <div className="relative flex min-h-0 flex-col justify-center overflow-hidden rounded-none bg-transparent p-0 text-center sm:p-0">
               {currentPlayer ? <>
-                {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.status} />}
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-300 sm:text-sm">Player #{currentPlayer.player_number} · {currentPlayer.category}</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-300 sm:text-sm" style={{ WebkitTextStroke: "0.8px rgba(255,255,255,0.36)", textShadow: "0 0 2px rgba(255,255,255,0.4), 0 0 12px rgba(255,163,43,0.42), 0 3px 10px rgba(0,0,0,0.85)" }}>
+                  Player #{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}
+                </p>
                 <div className="mt-2 flex min-h-0 flex-col items-center justify-center gap-3 sm:flex-row sm:gap-5 sm:text-left">
-                  {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={240} height={240} className="h-[30vh] max-h-64 w-[30vh] max-w-64 shrink-0 rounded-full border-4 border-orange-400 object-cover sm:border-8" /> : <div className="grid h-[30vh] max-h-64 w-[30vh] max-w-64 shrink-0 place-items-center rounded-full border-4 border-orange-400 bg-white/10 text-5xl sm:border-8 sm:text-6xl">🏏</div>}
-                  <div className="min-w-0"><h2 className="text-3xl font-black leading-tight sm:text-4xl lg:text-[min(6vh,4.5rem)]">{currentPlayer.full_name}</h2><p className="mt-1 text-base font-bold text-orange-100 sm:text-xl">{currentPlayer.role ?? currentPlayer.category}</p>{currentPlayer.batting_style && <p className="mt-1 text-sm text-white/80 sm:text-base">{currentPlayer.batting_style}</p>}{currentPlayer.bowling_style && <p className="mt-1 text-sm text-white/80 sm:text-base">{currentPlayer.bowling_style}</p>}{currentPlayer.previous_team && <p className="mt-1 text-xs text-white/65 sm:text-sm">Played team last year · {currentPlayer.previous_team}</p>}</div>
+                  <div className="relative rounded-[1.75rem] border border-orange-300/80 bg-slate-950/20 p-2 shadow-[0_0_20px_rgba(251,146,60,0.18)] backdrop-blur-[1px] sm:p-3">
+                    {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={220} height={220} className="h-[24vh] max-h-56 w-[24vh] max-w-56 shrink-0 rounded-[1.2rem] object-cover" /> : <div className="grid h-[24vh] max-h-56 w-[24vh] max-w-56 shrink-0 place-items-center rounded-[1.2rem] bg-white/10 text-5xl">🏏</div>}
+                    {currentPlayer.rtm_team_id && <div className="absolute right-2 top-2 rounded-full bg-amber-400 px-2 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-950 shadow-md">RTM</div>}
+                  </div>
+                  <div className="min-w-0 space-y-2">
+                    {detailCards.map((detail) => (
+                      <div key={detail.label} className="rounded-[0.7rem] border border-orange-300/80 bg-slate-950/25 px-3 py-2 shadow-[0_0_0_1px_rgba(255,255,255,0.08)] sm:px-3.5 sm:py-2.5">
+                        <p className="text-[9px] font-black uppercase tracking-[0.26em] text-orange-200/90">{detail.label}</p>
+                        <p className="mt-1.5 text-base font-black leading-tight text-white sm:text-xl lg:text-[min(3vh,1.9rem)]" style={{ WebkitTextStroke: "0.7px rgba(255,255,255,0.26)", textShadow: "0 0 8px rgba(255,255,255,0.08)" }}>{detail.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </> : <div><p className="text-sm font-black uppercase tracking-[0.2em] text-orange-300">{tournament.status === "completed" ? "Auction completed" : "Waiting for next player"}</p><h2 className="mt-3 text-3xl font-black sm:text-5xl">{tournament.status === "completed" ? "Thank you!" : "Get ready"}</h2><p className="mt-2 text-sm text-white/75 sm:text-lg">{tournament.status === "completed" ? `${soldPlayers.length} players sold` : "The next player will appear here as soon as the host calls them."}</p></div>}
             </div>
-            <aside className="grid min-h-0 grid-rows-[1fr_auto] gap-2">
-              <div className="flex min-h-0 flex-col items-center justify-center overflow-hidden rounded-xl border border-white/30 bg-slate-950/15 p-3 text-center sm:p-5">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">{currentPlayer?.status === "sold" ? "Sold for" : currentPlayer?.status === "unsold" ? "Auction result" : currentTeam ? "Highest bid" : "Base price"}</p>
-                <p className="mt-1 text-5xl font-black text-orange-300 sm:text-7xl">{currentPlayer?.status === "sold" ? points(currentPlayer.sold_price) : currentPlayer?.status === "unsold" ? "UNSOLD" : points(tournament.current_bid ?? tournament.base_price)}</p>
+            {currentPlayer && currentPlayer.status !== "available" && <div className="pointer-events-none absolute left-[58%] top-1/2 z-30 -translate-x-1/2 -translate-y-1/2"><AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="!right-auto !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2" /></div>}
+            <aside className="grid min-h-0 grid-rows-[1fr_auto] gap-2 pb-14 pl-4">
+              <div className="flex min-h-0 flex-col items-center justify-center overflow-hidden rounded-none bg-transparent p-1 text-center sm:p-2">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">{currentPlayer?.status === "sold" ? "Sold for" : currentPlayer?.status === "unsold" ? "Auction result" : currentTeam ? "" : "Base price"}</p>
+                <p className="mt-1 text-5xl font-black text-orange-300 sm:text-6xl">{currentPlayer?.status === "sold" ? points(currentPlayer.sold_price) : currentPlayer?.status === "unsold" ? "UNSOLD" : points(tournament.current_bid ?? tournament.base_price)}</p>
                 {currentPlayer?.status !== "unsold" && <p className="text-sm font-bold text-white/80 sm:text-lg">POINTS</p>}
-                {(currentTeam || resultTeam) && <div className="mt-2 flex min-h-0 flex-col items-center border-t border-white/20 pt-2"><TeamMark name={(currentTeam ?? resultTeam)!.name} logoUrl={(currentTeam ?? resultTeam)!.logo_url} size="lg" /><p className="mt-1 line-clamp-2 text-base font-black uppercase sm:text-xl">{(currentTeam ?? resultTeam)?.name}</p></div>}
+                {(currentTeam || resultTeam) && <div className="mt-2 flex min-h-0 w-full flex-col items-center pt-0"><TeamMark name={activeTeam!.name} logoUrl={activeTeam!.logo_url} size="lg" /><p className="mt-1 line-clamp-2 text-center text-base font-black uppercase text-white sm:text-xl">{activeTeam?.name}</p><div className="mt-2 grid w-full max-w-xs grid-cols-2 gap-2 text-center text-[10px] font-bold uppercase tracking-[0.12em] text-white sm:text-[11px]"><div className="rounded-lg bg-white/5 px-2 py-2"><span className="block text-white">Balance</span><span className="mt-1 block text-sm font-black text-white sm:text-base">{points(activeTeam?.points_remaining ?? 0)}</span></div><div className="rounded-lg bg-white/5 px-2 py-2"><span className="block text-white">Squad</span><span className="mt-1 block text-sm font-black text-white sm:text-base">{activeTeamRoster}/{tournament.max_squad_size}</span></div></div></div>}
                 {!currentTeam && !resultTeam && currentPlayer?.status === "available" && <p className="mt-2 text-sm text-white/70 sm:text-lg">No bids yet</p>}
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {[["Teams", teams.length], ["Players", players.length], ["Sold", soldPlayers.length]].map(([label, value]) => <div key={label} className="rounded-lg border border-white/15 bg-slate-950/55 p-2"><p className="text-xl font-black sm:text-2xl">{value}</p><p className="text-[9px] font-black uppercase tracking-wider text-white/65 sm:text-xs">{label}</p></div>)}
               </div>
             </aside>
           </div>}
@@ -187,10 +221,12 @@ export default function AuctionProjector({ slug }: { slug: string }) {
             <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2 xl:grid-cols-3">
               {visibleTeams.map((team) => {
                 const roster = soldPlayers.filter((player) => player.sold_team_id === team.id);
-                return <article key={team.id} className="flex min-h-0 items-center gap-3 overflow-hidden rounded-xl border border-white/20 bg-slate-950/65 p-3 shadow-lg sm:gap-4 sm:p-4">
+                const spent = tournament.points_per_team - team.points_remaining;
+                const currentMax = maxBid(team.points_remaining, roster.length, tournament.min_squad_size, tournament.base_price, team.rtm_count ?? 0);
+                return <article key={team.id} className="flex min-h-0 items-center gap-3 overflow-hidden rounded-[1rem] border border-orange-300/80 bg-slate-950/20 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] backdrop-blur-[1px] sm:gap-4 sm:p-4">
                   <TeamMark name={team.name} logoUrl={team.logo_url} size="md" />
-                  <div className="min-w-0 flex-1"><h2 className="truncate text-sm font-black uppercase sm:text-xl">{team.name}</h2><p className="mt-1 text-xs text-white/70 sm:text-sm">{roster.length} players</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Spent {points(tournament.points_per_team - team.points_remaining)}</p></div>
-                  <div className="text-right"><p className="text-lg font-black text-orange-300 sm:text-2xl">{points(team.points_remaining)}</p><p className="text-[9px] font-black uppercase text-green-300 sm:text-xs">Remaining</p></div>
+                  <div className="min-w-0 flex-1"><h2 className="truncate text-sm font-black uppercase sm:text-xl">{team.name}</h2><p className="mt-1 text-xs text-white/70 sm:text-sm">{roster.length} players</p>{(team.rtm_count ?? 0) > 0 && <p className="mt-1 text-[10px] font-bold text-amber-200 sm:text-xs">RTM x{team.rtm_count}</p>}<p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Spent {points(spent)}</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Max {points(currentMax)}</p></div>
+                  <div className="text-right"><p className="text-lg font-black text-orange-300 sm:text-2xl">{points(team.points_remaining)}</p></div>
                 </article>;
               })}
             </div>
@@ -198,13 +234,13 @@ export default function AuctionProjector({ slug }: { slug: string }) {
           </div>}
 
           {tab === "players" && <div className="flex h-full min-h-0 flex-col">
-            <div className="mb-2 flex shrink-0 items-center justify-between gap-2"><div><h2 className="text-xl font-black sm:text-3xl">Players</h2><p className="text-xs text-white/70">{filteredPlayers.length} players</p></div><input value={search} onChange={(event) => { setSearch(event.target.value); setListPage(0); }} placeholder="Search players…" className="h-9 w-full max-w-xs rounded-lg border border-white/25 bg-slate-950/60 px-3 text-sm text-white outline-none placeholder:text-white/50 focus:border-orange-300" /></div>
+            <div className="mb-2 flex shrink-0 items-center justify-between gap-2"><div><h2 className="text-xl font-black sm:text-3xl">Players</h2><p className="text-xs text-white/70">{filteredPlayers.length} players</p></div><input value={search} onChange={(event) => { setSearch(event.target.value); setListPage(0); }} placeholder="Search players…" className="h-9 w-full max-w-xs rounded-lg bg-slate-950/40 px-3 text-sm text-white outline-none placeholder:text-white/50" /></div>
             <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2 xl:grid-cols-4">
               {visiblePlayers.map((player) => {
                 const buyer = teams.find((team) => team.id === player.sold_team_id);
-                return <article key={player.id} className="flex min-h-0 items-center gap-2 overflow-hidden rounded-lg border border-white/15 bg-slate-950/65 p-2 sm:gap-3 sm:p-3">
+                return <article key={player.id} className="flex min-h-0 items-center gap-2 overflow-hidden rounded-[0.9rem] border border-orange-300/80 bg-slate-950/20 p-2 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] backdrop-blur-[1px] sm:gap-3 sm:p-3">
                   {player.photo_url ? <AuctionImage src={player.photo_url} alt="" width={64} height={64} className="h-10 w-10 shrink-0 rounded-lg object-cover sm:h-14 sm:w-14" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10 text-lg sm:h-14 sm:w-14 sm:text-xl">🏏</span>}
-                  <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-1"><p className="truncate text-xs font-black sm:text-base">{player.full_name}</p><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase sm:text-[10px] ${player.status === "sold" ? "bg-green-500 text-white" : player.status === "unsold" ? "bg-slate-500 text-white" : "bg-amber-300 text-slate-950"}`}>{player.status}</span></div><p className="truncate text-[10px] text-white/70 sm:text-xs">#{player.player_number} · {player.category}</p><p className="truncate text-[9px] font-bold text-orange-200 sm:text-xs">{buyer ? `${buyer.name} · ${points(player.sold_price)} pts` : "—"}</p></div>
+                  <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-1"><p className="truncate text-xs font-black sm:text-base">{player.full_name}</p><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase sm:text-[10px] ${player.status === "sold" ? "bg-green-500 text-white" : player.status === "unsold" ? "bg-slate-500 text-white" : "bg-amber-300 text-slate-950"}`}>{player.status}</span></div><p className="truncate text-[10px] text-white/70 sm:text-xs">#{player.player_number}{shouldDisplayCategory ? ` · ${player.category}` : ""}</p><p className="truncate text-[9px] font-bold text-orange-200 sm:text-xs">{buyer ? `${buyer.name} · ${points(player.sold_price)} pts` : "—"}</p></div>
                 </article>;
               })}
             </div>

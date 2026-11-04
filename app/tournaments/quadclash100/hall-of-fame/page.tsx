@@ -1,5 +1,31 @@
-﻿import Link from "next/link";
+﻿import Image from "next/image";
+import Link from "next/link";
 import TournamentLogo from "../../../components/TournamentLogo";
+
+const teamLogos: Record<string, string> = {
+  Strikers: "/quadclash100/logos/strikers.png",
+  "Ezzi United XIII": "/quadclash100/logos/ezzi-united.png",
+  Mavericks: "/quadclash100/logos/mavericks.png",
+  "Multiplize Highlanders": "/quadclash100/logos/multiplize-highlanders.png",
+};
+
+function TeamBadge({ team, title }: { team: string; title: string }) {
+  const logo = teamLogos[team];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+      <p className="text-xs font-black uppercase tracking-widest text-slate-500">{title}</p>
+      <div className="mt-4 flex items-center gap-4">
+        {logo ? (
+          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-transparent p-2 shadow-none">
+            <Image src={logo} alt={`${team} logo`} width={64} height={64} className="h-full w-full object-contain" />
+          </div>
+        ) : null}
+        <h2 className="text-2xl font-black">{team}</h2>
+      </div>
+    </div>
+  );
+}
 
 export default function HallOfFame() {
   return (
@@ -19,13 +45,13 @@ export default function HallOfFame() {
         <div className="mt-7 grid gap-4 sm:grid-cols-2">
           <section className="rounded-2xl border border-amber-400/40 bg-white p-6">
             <p className="text-xs font-black uppercase tracking-widest text-amber-700">Season 1</p>
-            <div className="mt-5 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] p-5">
-              <p className="text-xs font-black uppercase tracking-widest text-amber-700">🏆 Champions</p>
-              <h2 className="mt-3 text-2xl font-black">Strikers</h2>
-            </div>
-            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-5">
-              <p className="text-xs font-black uppercase tracking-widest text-slate-500">🥈 Runner-up</p>
-              <h2 className="mt-3 text-xl font-black">Multiplize Highlanders</h2>
+            <div className="mt-5 space-y-3">
+              <div className="rounded-xl border border-amber-400/30 bg-amber-400/[0.06] p-5">
+                <TeamBadge team="Strikers" title="🏆 Champions" />
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <TeamBadge team="Multiplize Highlanders" title="🥈 Runner-up" />
+              </div>
             </div>
           </section>
 
