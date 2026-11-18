@@ -10,22 +10,25 @@ import { supabase } from "@/lib/supabase/client";
 
 type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
 type Player = {
-  id: string; player_number: number; full_name: string; category: string; role: string | null;
+  id: string; player_number: number; full_name: string; category: string; category_id: string; role: string | null;
   batting_style: string | null; bowling_style: string | null; previous_team: string | null; photo_url: string | null;
   status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null; rtm_team_id: string | null;
 };
 type Sponsor = { id: string; name: string; logo_url: string | null; website_url: string | null };
+type AuctionCategory = { id: string; name: string; base_price: number; min_players: number; max_players: number };
 type IncrementRule = { from: number; increment: number };
 type Tournament = {
-  id: string; slug: string; name: string; status: string; points_per_team: number; base_price: number;
+  id: string; slug: string; name: string; status: string; auction_mode: "trial" | "live"; scheduled_date: string | null; points_per_team: number; base_price: number;
   bid_increment: number; bid_increment_rules: IncrementRule[]; min_squad_size: number; max_squad_size: number; current_player_id: string | null;
   current_bid: number | null; current_bid_team_id: string | null; background_url: string | null;
   tournament_logo_url: string | null; organizer_logo_urls: string[];
 };
-type AuctionData = { tournament: Tournament; teams: Team[]; players: Player[]; sponsors: Sponsor[] };
-type PlayerFormData = Omit<Player, "status" | "sold_team_id" | "sold_price" | "rtm_team_id">;
+type AuctionData = { tournament: Tournament; teams: Team[]; players: Player[]; sponsors: Sponsor[]; categories: AuctionCategory[] };
+type PlayerFormData = Omit<Player, "category_id" | "status" | "sold_team_id" | "sold_price" | "rtm_team_id">;
 type TeamFormData = Pick<Team, "id" | "name" | "logo_url" | "rtm_count">;
 type SponsorFormData = Sponsor;
+type CategoryFormData = { id: string; name: string; basePrice: string; minPlayers: string; maxPlayers: string };
+type SetupTab = "overview" | "rules" | "teams" | "players" | "branding" | "sponsors";
 
 const inputClass = "mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-orange-500";
 const buttonClass = "rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50";
@@ -77,12 +80,17 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [tournamentLogoUrl, setTournamentLogoUrl] = useState("");
   const [organizerLogoUrls, setOrganizerLogoUrls] = useState("");
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [setupTab, setSetupTab] = useState<SetupTab>("overview");
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorLogo, setSponsorLogo] = useState("");
   const [sponsorWebsite, setSponsorWebsite] = useState("");
   const [incrementRules, setIncrementRules] = useState<IncrementRule[]>([]);
+  const [categoryForm, setCategoryForm] = useState<CategoryFormData>({ id: "", name: "", basePrice: "0", minPlayers: "0", maxPlayers: "25" });
   const [selectionMode, setSelectionMode] = useState("random");
   const [selectionCategory, setSelectionCategory] = useState("");
+  const [appliedSelectionMode, setAppliedSelectionMode] = useState("random");
+  const [appliedSelectionCategory, setAppliedSelectionCategory] = useState("");
   const [playerPoolFilter, setPlayerPoolFilter] = useState("");
   const [playerPoolSearchMode, setPlayerPoolSearchMode] = useState<"name" | "number">("name");
   const [bidDraft, setBidDraft] = useState<{ key: string; value: string } | null>(null);
@@ -93,12 +101,18 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [pendingRTMPlayer, setPendingRTMPlayer] = useState<Player | null>(null);
   const [pendingDeleteTeam, setPendingDeleteTeam] = useState<Team | null>(null);
   const [pendingDeleteSponsor, setPendingDeleteSponsor] = useState<Sponsor | null>(null);
+  const [pendingDeletePlayer, setPendingDeletePlayer] = useState<Player | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetPin, setResetPin] = useState("");
+  const [pendingMode, setPendingMode] = useState<"trial" | "live" | null>(null);
+  const [modePin, setModePin] = useState("");
   const [pendingBids, setPendingBids] = useState(0);
   const bidQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingBidCount = useRef(0);
   const failedBidQueue = useRef(false);
 
   const load = useCallback(async () => {
+    setBidDraft(null);
     const response = await fetch(`/api/admin/auctions/${encodeURIComponent(slug)}`, { cache: "no-store" });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Unable to load auction.");
@@ -106,6 +120,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     setBackgroundUrl(result.tournament.background_url ?? "");
     setTournamentLogoUrl(result.tournament.tournament_logo_url ?? "");
     setOrganizerLogoUrls((result.tournament.organizer_logo_urls ?? []).join("\n"));
+    setScheduledDate(result.tournament.scheduled_date ?? "");
     setIncrementRules(incrementRulesFor(result.tournament));
   }, [slug]);
 
@@ -120,6 +135,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           setBackgroundUrl(result.tournament.background_url ?? "");
           setTournamentLogoUrl(result.tournament.tournament_logo_url ?? "");
           setOrganizerLogoUrls((result.tournament.organizer_logo_urls ?? []).join("\n"));
+          setScheduledDate(result.tournament.scheduled_date ?? "");
           setIncrementRules(incrementRulesFor(result.tournament));
         }
       })
@@ -134,6 +150,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     const tournamentId = data.tournament.id;
     const channel = supabase.channel(`admin-auction-${tournamentId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "auction_tournaments", filter: `slug=eq.${slug}` }, ({ new: row }) => {
+        setBidDraft(null);
         setData((previous) => previous ? { ...previous, tournament: { ...previous.tournament, ...(row as Partial<Tournament>) } } : previous);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "auction_teams", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
@@ -166,21 +183,36 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     return () => { void supabase.removeChannel(channel); };
   }, [data?.tournament.id, slug]);
 
-  const availablePlayers = useMemo(() => (data?.players ?? []).filter((player) => player.status === "available"), [data]);
-  const categories = useMemo(() => Array.from(new Set(availablePlayers.map((player) => player.category))).sort(), [availablePlayers]);
+  const availablePlayers = useMemo(() => (data?.players ?? []).filter((player) => player.status === "available"), [data?.players]);
+  const soldCountsByTeam = useMemo(() => {
+    const counts = new Map<string, number>();
+    const countsByCategory = new Map<string, number>();
+    for (const player of data?.players ?? []) {
+      if (player.status !== "sold" || !player.sold_team_id) continue;
+      counts.set(player.sold_team_id, (counts.get(player.sold_team_id) ?? 0) + 1);
+      const key = `${player.sold_team_id}:${player.category_id}`;
+      countsByCategory.set(key, (countsByCategory.get(key) ?? 0) + 1);
+    }
+    return { counts, countsByCategory };
+  }, [data?.players]);
+  const playerCategories = useMemo(() => Array.from(new Set(availablePlayers.map((player) => player.category))).sort(), [availablePlayers]);
   const currentPlayer = data?.players.find((player) => player.id === data.tournament.current_player_id);
+  const currentCategory = data?.categories.find((category) => category.id === currentPlayer?.category_id);
   const currentTeam = data?.teams.find((team) => team.id === data.tournament.current_bid_team_id);
   const soldTeam = currentPlayer && currentPlayer.status === "sold" && currentPlayer.sold_team_id
     ? data?.teams.find((team) => team.id === currentPlayer.sold_team_id) ?? null
     : null;
-  const soldPlayers = data?.players.filter((player) => player.status === "sold").length ?? 0;
-  const unsoldPlayers = data?.players.filter((player) => player.status === "unsold").length ?? 0;
+  const soldPlayers = useMemo(
+    () => Array.from(soldCountsByTeam.counts.values()).reduce((total, count) => total + count, 0),
+    [soldCountsByTeam]
+  );
+  const unsoldPlayers = useMemo(() => (data?.players ?? []).filter((player) => player.status === "unsold").length, [data?.players]);
   const canSelectNextPlayer = useMemo(() => {
-    if (!data) return false;
     const pool = availablePlayers.filter((player) => player.id !== currentPlayer?.id);
-    const candidates = selectionCategory ? pool.filter((player) => player.category === selectionCategory) : pool;
+    const candidates = appliedSelectionCategory ? pool.filter((player) => player.category === appliedSelectionCategory) : pool;
     return candidates.length > 0;
-  }, [availablePlayers, currentPlayer?.id, data, selectionCategory]);
+  }, [availablePlayers, currentPlayer?.id, appliedSelectionCategory]);
+  const queueSettingsDirty = selectionMode !== appliedSelectionMode || selectionCategory !== appliedSelectionCategory;
   const filteredPlayerPool = useMemo(() => {
     const query = playerPoolFilter.trim().toLowerCase();
     if (!query) return data?.players ?? [];
@@ -192,30 +224,57 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     });
   }, [data?.players, playerPoolFilter, playerPoolSearchMode]);
   const nextBid = data?.tournament.current_bid == null
-    ? data?.tournament.base_price ?? 0
+    ? currentCategory?.base_price ?? data?.tournament.base_price ?? 0
     : Math.round((data.tournament.current_bid + incrementForBid(data.tournament, data.tournament.current_bid)) * 100) / 100;
-  function reserveForTeam(team: Team) {
-    const bought = (data?.players ?? []).filter((player) => player.status === "sold" && player.sold_team_id === team.id).length;
-    return Math.max((data?.tournament.min_squad_size ?? 0) - bought - 1, 0) * (data?.tournament.base_price ?? 0);
+  function reserveForTeam(team: Team, categoryId = currentPlayer?.category_id) {
+    if (!data) return 0;
+    let remainingCategorySlots = 0;
+    let categoryReserve = 0;
+    const categoryCapacities: { basePrice: number; slots: number }[] = [];
+    for (const category of data.categories) {
+      const count = soldCountsByTeam.countsByCategory.get(`${team.id}:${category.id}`) ?? 0;
+      const currentPlayerSlot = category.id === categoryId ? 1 : 0;
+      const remaining = Math.max(category.min_players - count - currentPlayerSlot, 0);
+      remainingCategorySlots += remaining;
+      categoryReserve += remaining * category.base_price;
+      categoryCapacities.push({
+        basePrice: category.base_price,
+        slots: Math.max(category.max_players - count - currentPlayerSlot - remaining, 0),
+      });
+    }
+    let extraSquadSlots = Math.max(data.tournament.min_squad_size - (soldCountsByTeam.counts.get(team.id) ?? 0) - 1 - remainingCategorySlots, 0);
+    for (const category of categoryCapacities.sort((left, right) => left.basePrice - right.basePrice)) {
+      const reservedSlots = Math.min(extraSquadSlots, category.slots);
+      categoryReserve += reservedSlots * category.basePrice;
+      extraSquadSlots -= reservedSlots;
+      if (!extraSquadSlots) break;
+    }
+    return extraSquadSlots ? Number.POSITIVE_INFINITY : categoryReserve;
+  }
+  function categoryLimitReached(team: Team, categoryId = currentPlayer?.category_id) {
+    const category = data?.categories.find((item) => item.id === categoryId);
+    if (!category) return false;
+    const bought = soldCountsByTeam.countsByCategory.get(`${team.id}:${category.id}`) ?? 0;
+    return bought >= category.max_players;
   }
   function maximumBidForTeam(team: Team) {
-    const rtmBoost = (team.rtm_count ?? 0) * (data?.tournament.base_price ?? 0);
+    const categoryBasePrice = currentCategory?.base_price ?? data?.tournament.base_price ?? 0;
+    const rtmBoost = (team.rtm_count ?? 0) * categoryBasePrice;
     return Math.max(0, team.points_remaining - reserveForTeam(team) + rtmBoost);
   }
 
   const bidDraftKey = `${currentPlayer?.id ?? ""}:${data?.tournament.current_bid ?? "opening"}`;
-  useEffect(() => {
-    setBidDraft(null);
-  }, [data?.tournament.current_player_id, data?.tournament.current_bid, data?.tournament.current_bid_team_id]);
   const bidAmount = bidDraft?.key === bidDraftKey ? bidDraft.value : String(nextBid ?? "");
-  const minimumSelectableBid = data?.tournament.current_bid == null ? (nextBid ?? 0) : data.tournament.base_price;
+  const minimumSelectableBid = data?.tournament.current_bid == null
+    ? (nextBid ?? 0)
+    : currentCategory?.base_price ?? data?.tournament.base_price ?? 0;
   function adjustBid(direction: "up" | "down") {
     if (!data) return;
     const current = Number(bidAmount);
     const value = Number.isFinite(current) ? current : (data.tournament.current_bid ?? data.tournament.base_price);
     const increment = direction === "up"
       ? incrementForBid(data.tournament, value)
-      : incrementForBid(data.tournament, Math.max(data.tournament.base_price, value - 0.01));
+      : incrementForBid(data.tournament, Math.max(minimumSelectableBid, value - 0.01));
     const adjusted = direction === "up" ? value + increment : Math.max(minimumSelectableBid, value - increment);
     setBidDraft({ key: bidDraftKey, value: String(Math.round(adjusted * 100) / 100) });
   }
@@ -284,8 +343,8 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     if (body.action === "skip_player") {
       return { ...previous, tournament: { ...tournament, current_player_id: null, current_bid: null, current_bid_team_id: null } };
     }
-    if (body.action === "start" || body.action === "resume" || body.action === "pause" || body.action === "complete") {
-      const status = body.action === "start" || body.action === "resume" ? "live" : body.action === "pause" ? "paused" : "completed";
+    if (body.action === "start" || body.action === "complete") {
+      const status = body.action === "start" ? "live" : "completed";
       return { ...previous, tournament: { ...tournament, status } };
     }
     return previous;
@@ -317,6 +376,31 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     }
   }
 
+  async function changeAuctionMode(mode: "trial" | "live") {
+    if (!data || data.tournament.auction_mode === mode) return;
+    setModePin("");
+    setPendingMode(mode);
+  }
+
+  async function confirmAuctionModeChange() {
+    if (!pendingMode) return;
+    if (await action({ action: "set_mode", mode: pendingMode, adminPin: modePin })) {
+      setPendingMode(null);
+      setModePin("");
+    }
+  }
+
+  async function confirmAuctionReset() {
+    const succeeded = await action({
+      action: "reset",
+      ...(data?.tournament.auction_mode === "live" ? { adminPin: resetPin } : {}),
+    });
+    if (succeeded) {
+      setResetDialogOpen(false);
+      setResetPin("");
+    }
+  }
+
   async function submitRules(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!data) return;
@@ -326,6 +410,42 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
       bidIncrement: incrementRules[0]?.increment ?? data.tournament.bid_increment, bidIncrementRules: incrementRules, minSquadSize: Number(form.get("minSquadSize")),
       maxSquadSize: Number(form.get("maxSquadSize")),
     });
+  }
+
+  async function saveCategory(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const saved = await action({
+      action: categoryForm.id ? "edit_category" : "add_category",
+      ...(categoryForm.id ? { categoryId: categoryForm.id } : {}),
+      name: categoryForm.name,
+      basePrice: Number(categoryForm.basePrice),
+      minPlayers: Number(categoryForm.minPlayers),
+      maxPlayers: Number(categoryForm.maxPlayers),
+    });
+    if (saved) {
+      setCategoryForm({ id: "", name: "", basePrice: "0", minPlayers: "0", maxPlayers: String(data?.tournament.max_squad_size ?? 25) });
+      setMessage(categoryForm.id ? "Category updated." : "Category added.");
+    }
+  }
+
+  function editCategory(category: AuctionCategory) {
+    setCategoryForm({
+      id: category.id,
+      name: category.name,
+      basePrice: String(category.base_price),
+      minPlayers: String(category.min_players),
+      maxPlayers: String(category.max_players),
+    });
+  }
+
+  async function deleteCategory(category: AuctionCategory) {
+    const deleted = await action({ action: "delete_category", categoryId: category.id });
+    if (deleted) {
+      if (categoryForm.id === category.id) {
+        setCategoryForm({ id: "", name: "", basePrice: "0", minPlayers: "0", maxPlayers: String(data?.tournament.max_squad_size ?? 25) });
+      }
+      setMessage("Category deleted.");
+    }
   }
 
   async function uploadAsset(file: File, type: "team" | "sponsor" | "background" | "tournament" | "organizer") {
@@ -426,6 +546,29 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     if (succeeded) setPendingDeleteSponsor(null);
   }
 
+  async function confirmDeletePlayer() {
+    if (!pendingDeletePlayer) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/admin/auctions/${encodeURIComponent(slug)}/players`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: pendingDeletePlayer.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to delete player.");
+      setPendingDeletePlayer(null);
+      await load();
+      setMessage("Player deleted.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to delete player.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function uploadEditedSponsorLogo(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file || !editingSponsor) return;
@@ -462,7 +605,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Player import failed.");
       await load();
-      setMessage(`Imported ${result.imported} players.`);
+      setMessage(`Uploaded ${result.imported} players. Existing player numbers were updated.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Player import failed.");
     } finally {
@@ -512,12 +655,12 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     if (!data) return;
     let playerId = "";
     const basePool = availablePlayers.filter((player) => player.id !== currentPlayer?.id);
-    const candidates = selectionCategory ? basePool.filter((player) => player.category === selectionCategory) : basePool;
+    const candidates = appliedSelectionCategory ? basePool.filter((player) => player.category === appliedSelectionCategory) : basePool;
     if (!candidates.length) {
       setError("No other players are available for that selection.");
       return;
     }
-    if (selectionMode === "sequence") {
+    if (appliedSelectionMode === "sequence") {
       const nextCandidate = [...candidates].sort((a, b) => a.player_number - b.player_number)[0];
       if (!nextCandidate) {
         setError("No player is available in sequence order.");
@@ -532,6 +675,13 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
       return;
     }
     await action({ action: "select_player", playerId });
+  }
+
+  function applyQueueSettings() {
+    setAppliedSelectionMode(selectionMode);
+    setAppliedSelectionCategory(selectionCategory);
+    setError("");
+    setMessage("Player queue settings applied.");
   }
 
   async function reauctionUnsoldPlayers() {
@@ -560,11 +710,12 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   async function applyTeamRTM(team: Team) {
     if (!data || !pendingRTMPlayer || pendingRTMPlayer.status !== "sold" || !pendingRTMPlayer.sold_team_id) return;
     const soldPlayer = pendingRTMPlayer;
-    const soldCount = (data.players ?? []).filter((player) => player.status === "sold" && player.sold_team_id === team.id).length;
-    const reserve = Math.max((data.tournament.min_squad_size ?? 0) - soldCount - 1, 0) * (data.tournament.base_price ?? 0);
-    const rtmBoost = (team.rtm_count ?? 0) * (data.tournament.base_price ?? 0);
+    const category = data.categories.find((item) => item.id === soldPlayer.category_id);
+    const reserve = reserveForTeam(team, soldPlayer.category_id);
+    const rtmBoost = (team.rtm_count ?? 0) * (category?.base_price ?? data.tournament.base_price);
     const maxBid = Math.max(0, Number(team.points_remaining) - reserve + rtmBoost);
-    if ((team.rtm_count ?? 0) <= 0 || team.id === soldPlayer.sold_team_id || Number(soldPlayer.sold_price ?? 0) > maxBid) {
+    if ((team.rtm_count ?? 0) <= 0 || team.id === soldPlayer.sold_team_id ||
+        categoryLimitReached(team, soldPlayer.category_id) || Number(soldPlayer.sold_price ?? 0) > maxBid) {
       setError(`${team.name} is not eligible for RTM.`);
       return;
     }
@@ -585,6 +736,10 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
       setError(`${team.name} can bid up to ${maximumBidForTeam(team)}; ${reserveForTeam(team)} points are reserved for the remaining minimum squad slots.`);
       return;
     }
+    if (categoryLimitReached(team)) {
+      setError(`${team.name} has reached the maximum player count for ${currentCategory?.name ?? "this category"}.`);
+      return;
+    }
     const body = { action: data?.tournament.current_bid != null && amount <= data.tournament.current_bid ? "correct_bid" : "bid", teamId: team.id, amount };
     setError("");
     setMessage("");
@@ -599,7 +754,10 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Bid update failed.");
-      if (body.action === "correct_bid") await load();
+      if (body.action === "correct_bid") {
+        setBidDraft(null);
+        await load();
+      }
     });
     bidQueue.current = request.catch((reason: unknown) => {
       failedBidQueue.current = true;
@@ -657,24 +815,41 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           <Link href={`/admin/auctions/${slug}/run`} className={`rounded-lg border px-4 py-2 text-sm font-bold ${view === "run" ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-300 bg-white text-slate-700"}`}>Run auction</Link>
           <Link href={`/auction/${slug}`} target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Open viewer page ↗</Link>
           <Link href={`/auction/${slug}/projector`} target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Open projector ↗</Link>
+          <Link href={`/auction/${slug}/overlay`} target="_blank" className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-bold text-orange-800">YouTube overlay ↗</Link>
         </nav>
-        {view === "run" && <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <Link href={`/admin/auctions/${slug}`} className="rounded-xl border border-slate-200 bg-white p-4 text-sm hover:border-orange-300"><span className="block font-extrabold text-slate-900">Admin setup</span><span className="mt-1 block text-slate-600">Customize teams, players, sponsors and background.</span></Link>
-          <Link href={`/auction/${slug}/projector`} target="_blank" className="rounded-xl border border-slate-200 bg-white p-4 text-sm hover:border-orange-300"><span className="block font-extrabold text-slate-900">Projector link ↗</span><span className="mt-1 block text-slate-600">Fullscreen live auction, teams and player tabs.</span></Link>
-          <Link href={`/auction/${slug}`} target="_blank" className="rounded-xl border border-slate-200 bg-white p-4 text-sm hover:border-orange-300"><span className="block font-extrabold text-slate-900">Owner / viewer link ↗</span><span className="mt-1 block text-slate-600">Concise public scoreboard to share with everyone.</span></Link>
-        </div>}
-
         {(error || message) && <p role={error ? "alert" : "status"} className={`mt-5 rounded-lg px-4 py-3 text-sm font-semibold ${error ? "bg-red-50 text-red-800" : "bg-green-50 text-green-800"}`}>{error || message}</p>}
 
         {view === "setup" && <>
+        <nav aria-label="Tournament setup sections" className="mt-6 flex flex-wrap gap-2">
+          {([
+            ["overview", "Overview"],
+            ["rules", "Categories & Rules"],
+            ["teams", "Teams"],
+            ["players", "Players"],
+            ["branding", "Branding"],
+            ["sponsors", "Sponsors"],
+          ] as const).map(([tab, label]) => <button key={tab} type="button" onClick={() => setSetupTab(tab)} aria-current={setupTab === tab ? "page" : undefined} className={`rounded-lg border px-4 py-2 text-sm font-bold ${setupTab === tab ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}>{label}</button>)}
+        </nav>
+
+        {setupTab === "overview" && <>
         <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[["Teams", data.teams.length], ["Players", data.players.length], ["Sold", soldPlayers], ["Unsold", unsoldPlayers]].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold uppercase text-slate-500">{label}</p><p className="mt-1 text-2xl font-black text-slate-950">{value}</p></div>
           ))}
         </section>
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-black text-slate-900">Auction date</h2>
+          <p className="mt-1 text-sm text-slate-600">Set the date viewers will see before the auction begins.</p>
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="block text-xs font-bold text-slate-600">Scheduled date<input type="date" value={scheduledDate} onChange={(event) => setScheduledDate(event.target.value)} className={inputClass} /></label>
+            <button type="button" className={buttonClass} disabled={busy} onClick={() => void action({ action: "schedule", scheduledDate: scheduledDate || null })}>Save date</button>
+            <Link href={`/admin/auctions/${slug}/run`} className={buttonClass}>Open auction console →</Link>
+          </div>
+        </section>
+        </>}
 
-        <div className="mt-7 grid gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className={`mt-7 grid gap-6 ${setupTab === "branding" || setupTab === "rules" ? "lg:grid-cols-2" : "lg:grid-cols-1"} ${setupTab === "overview" || setupTab === "players" ? "hidden" : ""}`}>
+          {setupTab === "branding" && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-black text-slate-900">Public page background</h2>
             <p className="mt-1 text-sm text-slate-600">Choose the background shown on the owner/viewer page and projector. For projection, use a landscape, high-resolution image.</p>
             <label className="mt-4 block text-xs font-bold text-slate-600">Background image URL<input value={backgroundUrl} onChange={(event) => setBackgroundUrl(event.target.value)} className={inputClass} placeholder="https://…" /></label>
@@ -684,8 +859,8 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
               {backgroundUrl && <button className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700" disabled={busy} onClick={() => { setBackgroundUrl(""); void action({ action: "background", backgroundUrl: null }); }}>Remove background</button>}
             </div>
             {backgroundUrl && <AuctionImage src={backgroundUrl} alt="Selected auction background preview" width={640} height={200} className="mt-4 h-36 w-full rounded-lg border border-slate-200 object-cover" />}
-          </section>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          </section>}
+          {setupTab === "branding" && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-black text-slate-900">Projector branding</h2>
             <p className="mt-1 text-sm text-slate-600">The projector rotates organizer logos on the left and sponsor logos on the right, with the tournament logo in the center.</p>
             <label className="mt-4 block text-xs font-bold text-slate-600">Tournament logo URL<input value={tournamentLogoUrl} onChange={(event) => setTournamentLogoUrl(event.target.value)} className={inputClass} placeholder="https://…" /></label>
@@ -695,8 +870,36 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
               <label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Add organizer logo<input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => void uploadLogo(event, "organizer")} /></label>
               <button className={buttonClass} disabled={busy} onClick={() => void action({ action: "presentation", tournamentLogoUrl: tournamentLogoUrl.trim() || null, organizerLogoUrls: organizerLogoUrls.split(/\r?\n/).map((url) => url.trim()).filter(Boolean) })}>Save projector logos</button>
             </div>
-          </section>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          </section>}
+          {setupTab === "rules" && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-black text-slate-900">Player categories</h2>
+            <p className="mt-1 text-sm text-slate-600">Set each category’s opening price and per-team minimum/maximum. You can update these rules while the auction is running; minimums count toward the tournament minimum squad size.</p>
+            <form onSubmit={saveCategory} className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-bold text-slate-600">Name<input value={categoryForm.name} onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })} className={inputClass} maxLength={80} required disabled={busy} /></label>
+              <label className="text-xs font-bold text-slate-600">Base price<input value={categoryForm.basePrice} onChange={(event) => setCategoryForm({ ...categoryForm, basePrice: event.target.value })} className={inputClass} type="number" min="0" step="0.01" required disabled={busy} /></label>
+              <label className="text-xs font-bold text-slate-600">Min players per team<input value={categoryForm.minPlayers} onChange={(event) => setCategoryForm({ ...categoryForm, minPlayers: event.target.value })} className={inputClass} type="number" min="0" step="1" required disabled={busy} /></label>
+              <label className="text-xs font-bold text-slate-600">Max players per team<input value={categoryForm.maxPlayers} onChange={(event) => setCategoryForm({ ...categoryForm, maxPlayers: event.target.value })} className={inputClass} type="number" min="1" step="1" required disabled={busy} /></label>
+              <div className="flex gap-2 sm:col-span-2">
+                <button disabled={busy} className={buttonClass}>{categoryForm.id ? "Save category" : "Add category"}</button>
+                {categoryForm.id && <button type="button" disabled={busy} onClick={() => setCategoryForm({ id: "", name: "", basePrice: "0", minPlayers: "0", maxPlayers: String(data.tournament.max_squad_size) })} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold">Cancel edit</button>}
+              </div>
+            </form>
+            <div className="mt-4 grid gap-2">
+              {data.categories.map((category) => {
+                const playerCount = data.players.filter((player) => player.category_id === category.id).length;
+                return <div key={category.id} className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center">
+                  <div><p className="font-bold text-slate-900">{category.name}</p><p className="text-xs text-slate-600">Base {category.base_price} · Min {category.min_players} · Max {category.max_players} · {playerCount} players</p></div>
+                  <div className="flex gap-2">
+                    <button type="button" disabled={busy} onClick={() => editCategory(category)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit</button>
+                    <button type="button" disabled={busy || playerCount > 0} title={playerCount ? "Remove all players in this category first" : undefined} onClick={() => void deleteCategory(category)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button>
+                  </div>
+                </div>;
+              })}
+              {data.categories.length === 0 && <p className="rounded-xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-600">Add categories before importing players.</p>}
+            </div>
+          </section>}
+
+          {setupTab === "rules" && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-black text-slate-900">Auction rules</h2>
             <form onSubmit={submitRules} className="mt-4 grid grid-cols-2 gap-3">
               {[
@@ -708,9 +911,9 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
               <div className="col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-extrabold text-slate-900">Bid increment rules</p><p className="text-xs text-slate-500">The increment is selected from the current highest bid.</p></div><button type="button" disabled={busy} onClick={() => setIncrementRules((rules) => [...rules, { from: (rules.at(-1)?.from ?? 0) + 1, increment: rules.at(-1)?.increment ?? data.tournament.bid_increment }])} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Add range</button></div><div className="mt-3 grid gap-2">{incrementRules.map((rule, index) => <div key={index} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2"><label className="text-xs font-bold text-slate-600">From bid<input className={inputClass} type="number" min={0} step="0.01" value={rule.from} disabled={busy || index === 0} onChange={(event) => setIncrementRules((rules) => rules.map((item, itemIndex) => itemIndex === index ? { ...item, from: Number(event.target.value) } : item))} /></label><label className="text-xs font-bold text-slate-600">Increment<input className={inputClass} type="number" min="0.01" step="0.01" value={rule.increment} disabled={busy} onChange={(event) => setIncrementRules((rules) => rules.map((item, itemIndex) => itemIndex === index ? { ...item, increment: Number(event.target.value) } : item))} /></label><button type="button" disabled={busy || index === 0} onClick={() => setIncrementRules((rules) => rules.filter((_, itemIndex) => itemIndex !== index))} className="h-10 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-700 disabled:opacity-50">Remove</button></div>)}</div></div>
               <div className="col-span-2"><button disabled={busy} className={buttonClass}>Save rules</button><p className="mt-2 text-xs text-slate-500">Rules stay editable. Changing team points adjusts each remaining budget by the same difference.</p></div>
             </form>
-          </section>
+          </section>}
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          {setupTab === "teams" && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-black text-slate-900">Teams</h2>
             <form onSubmit={addTeam} className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-bold text-slate-600">Team name<input value={teamName} onChange={(event) => setTeamName(event.target.value)} className={inputClass} maxLength={120} required /></label>
@@ -721,11 +924,11 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
                 <button disabled={busy || data.tournament.status !== "setup"} className={buttonClass}>Add team</button>
               </div>
             </form>
-            <div className="mt-4 grid gap-2">{data.teams.map((team) => <div key={team.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex min-w-0 items-center gap-3"><TeamMark name={team.name} logoUrl={team.logo_url} size="sm" /><div><p className="font-bold text-slate-900">{team.name}</p><p className="text-xs text-slate-500">{team.points_remaining} pts remaining</p>{(team.rtm_count ?? 0) > 0 && <p className="text-[10px] font-bold uppercase text-amber-700">RTM x{team.rtm_count}</p>}</div></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => setEditingTeam({ id: team.id, name: team.name, logo_url: team.logo_url, rtm_count: team.rtm_count ?? 0 })} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit team</button><button type="button" disabled={busy || data.tournament.status !== "setup"} onClick={() => void deleteTeam(team)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button></div></div>)}</div>
+            <div className="mt-4 grid gap-2">{data.teams.map((team) => <div key={team.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex min-w-0 items-center gap-3"><TeamMark name={team.name} logoUrl={team.logo_url} size="sm" /><div><p className="font-bold text-slate-900">{team.name}</p><p className="text-xs text-slate-500">{team.points_remaining} pts remaining</p></div></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => setEditingTeam({ id: team.id, name: team.name, logo_url: team.logo_url, rtm_count: team.rtm_count ?? 0 })} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit team</button><button type="button" disabled={busy || data.tournament.status !== "setup"} onClick={() => void deleteTeam(team)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button></div></div>)}</div>
             {data.tournament.status !== "setup" && <p className="mt-3 text-xs text-slate-500">Team names and logos remain editable after the auction begins. Adding or deleting teams is available before it starts.</p>}
-          </section>
+          </section>}
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          {setupTab === "players" && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-black text-slate-900">Player pool</h2>
             <p className="mt-1 text-sm text-slate-600">Download the template, fill in one player per row, then upload the completed workbook. Name and Category are required; Player Number is optional and defaults to the row number.</p>
             <div className="mt-4 flex flex-wrap gap-3">
@@ -735,9 +938,9 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <p className="mt-3 text-xs text-slate-500">Import new players at any time. Player records are shown publicly without contact or identity details.</p>
             {error && <p className="mt-2 text-sm font-semibold text-red-700">Upload error: {error}</p>}
             <p className="mt-2 text-sm font-semibold text-slate-700">{availablePlayers.length} available · {soldPlayers} sold · {unsoldPlayers} unsold</p>
-          </section>
+          </section>}
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          {setupTab === "sponsors" && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-black text-slate-900">Sponsors</h2>
             <form onSubmit={addSponsor} className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-bold text-slate-600">Sponsor name<input value={sponsorName} onChange={(event) => setSponsorName(event.target.value)} className={inputClass} maxLength={120} required /></label>
@@ -749,96 +952,102 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
               </div>
             </form>
             <div className="mt-4 grid gap-2">{data.sponsors.map((sponsor) => <div key={sponsor.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold"><div className="flex min-w-0 items-center gap-2">{sponsor.logo_url && <AuctionImage src={sponsor.logo_url} alt="" width={32} height={32} className="h-8 w-8 object-contain" />}<span>{sponsor.name}</span></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => setEditingSponsor({ ...sponsor })} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit</button><button type="button" disabled={busy} onClick={() => setPendingDeleteSponsor(sponsor)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button></div></div>)}</div>
-          </section>
+          </section>}
         </div>
-        <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {setupTab === "players" && <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 p-5"><h2 className="font-black text-slate-900">Players · individual editing</h2><p className="mt-1 text-sm text-slate-600">Edit player details without re-importing the spreadsheet.</p></div>
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="sticky top-0 bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="p-3">#</th><th className="p-3">Player</th><th className="p-3">Category</th><th className="p-3">Status</th><th className="p-3">Edit</th></tr></thead>
-              <tbody>{data.players.map((player) => <tr key={player.id} className="border-t border-slate-100"><td className="p-3 font-bold">{player.player_number}</td><td className="p-3 font-semibold">{player.full_name}</td><td className="p-3">{player.category}</td><td className="p-3 capitalize">{player.status}</td><td className="p-3"><button type="button" onClick={() => setEditingPlayer({ id: player.id, player_number: player.player_number, full_name: player.full_name, category: player.category, role: player.role, batting_style: player.batting_style, bowling_style: player.bowling_style, previous_team: player.previous_team, photo_url: player.photo_url })} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-50">Edit player</button></td></tr>)}</tbody>
+              <thead className="sticky top-0 bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="p-3">#</th><th className="p-3">Player</th><th className="p-3">Category</th><th className="p-3">Status</th><th className="p-3">Actions</th></tr></thead>
+              <tbody>{data.players.map((player) => <tr key={player.id} className="border-t border-slate-100"><td className="p-3 font-bold">{player.player_number}</td><td className="p-3 font-semibold">{player.full_name}</td><td className="p-3">{player.category}</td><td className="p-3 capitalize">{player.status}</td><td className="p-3"><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => setEditingPlayer({ id: player.id, player_number: player.player_number, full_name: player.full_name, category: player.category, role: player.role, batting_style: player.batting_style, bowling_style: player.bowling_style, previous_team: player.previous_team, photo_url: player.photo_url })} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-50 disabled:opacity-50">Edit player</button>{data.tournament.status === "setup" && <button type="button" disabled={busy} onClick={() => setPendingDeletePlayer(player)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50">Delete</button>}</div></td></tr>)}</tbody>
             </table>
           </div>
-        </section>
-        <section className="mt-7 flex flex-col justify-between gap-4 rounded-2xl border border-orange-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
-          <div>
-            <h2 className="text-lg font-black text-slate-950">Ready to host?</h2>
-            <p className="mt-1 text-sm text-slate-600">Open the dedicated auction control page to start or run the live auction.</p>
-          </div>
-          <Link href={`/admin/auctions/${slug}/run`} className={buttonClass}>Open auction console →</Link>
-        </section>
+        </section>}
         </>}
 
-        {view === "run" && <section className="mt-7 rounded-2xl border border-orange-200 bg-white p-5 shadow-sm">
+        {view === "run" && <section className="mt-7 overflow-hidden rounded-[28px] border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-white shadow-2xl sm:p-7">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-orange-700">Live host console</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">Run the auction</h2>
-              <p className="mt-1 text-sm text-slate-600">Only admins control the auction. Public and team pages update live and are view-only.</p>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-300">Auction control room</p>
+              <h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Run the auction</h2>
+              <p className="mt-2 text-sm text-slate-300">Host controls · public pages update live</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {data.tournament.status === "setup" && <button className={buttonClass} disabled={busy} onClick={() => void action({ action: "start" })}>Start auction</button>}
-              {data.tournament.status === "paused" && <button className={buttonClass} disabled={busy} onClick={() => void action({ action: "resume" })}>Resume auction</button>}
-              {data.tournament.status === "live" && <button className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold" disabled={busy} onClick={() => void action({ action: "pause" })}>Pause</button>}
-              {data.tournament.status !== "completed" && data.tournament.status !== "setup" && <button className="rounded-lg border border-red-300 px-4 py-2.5 text-sm font-bold text-red-700" disabled={busy} onClick={() => void action({ action: "complete" })}>Complete auction</button>}
+              <div className="flex rounded-xl border border-white/15 bg-white/5 p-1" aria-label="Auction mode">
+                <button type="button" disabled={busy || data.tournament.auction_mode === "trial"} onClick={() => void changeAuctionMode("trial")} className={`rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50 ${data.tournament.auction_mode === "trial" ? "bg-orange-500 text-white shadow" : "text-slate-200 hover:bg-white/10"}`}>Trial Mode</button>
+                <button type="button" disabled={busy || data.tournament.auction_mode === "live"} onClick={() => void changeAuctionMode("live")} className={`rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-50 ${data.tournament.auction_mode === "live" ? "bg-emerald-500 text-white shadow" : "text-slate-200 hover:bg-white/10"}`}>Live</button>
+              </div>
+              <button type="button" className="rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10 disabled:opacity-50" disabled={busy || pendingBids > 0} onClick={() => { setResetPin(""); setResetDialogOpen(true); }}>Reset</button>
+              {data.tournament.status === "setup" && <button className={`${buttonClass} rounded-xl px-5`} disabled={busy} onClick={() => void action({ action: "start" })}>Start auction</button>}
+              {data.tournament.status !== "completed" && data.tournament.status !== "setup" && <button className="rounded-xl border border-red-300/50 px-4 py-2.5 text-sm font-bold text-red-200 hover:bg-red-400/10 disabled:opacity-50" disabled={busy} onClick={() => void action({ action: "complete" })}>Complete auction</button>}
             </div>
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[["Available", availablePlayers.length, "text-sky-300"], ["Sold", soldPlayers, "text-emerald-300"], ["Unsold", unsoldPlayers, "text-rose-300"], ["Teams", data.teams.length, "text-orange-300"]].map(([label, count, color]) => <div key={label} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"><p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className={`mt-1 text-2xl font-black ${color}`}>{count}</p></div>)}
           </div>
 
           {data.tournament.status === "live" && (
             <>
-              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.15em] text-orange-700">Next player</p>
-                    <h3 className="mt-1 text-lg font-extrabold text-slate-900">Player selection</h3>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">Player queue</p>
+                    <h3 className="mt-1 text-lg font-extrabold text-white">Choose who goes on the block</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className={`min-h-11 rounded-xl border px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${queueSettingsDirty ? "border-orange-300 bg-orange-400/10 text-orange-200 hover:bg-orange-400/20" : "border-white/10 bg-white/5 text-slate-400"}`} disabled={busy || !queueSettingsDirty} onClick={applyQueueSettings}>{queueSettingsDirty ? "Apply changes" : "Applied"}</button>
+                    {!currentPlayer && (availablePlayers.length === 0 ? <span className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-slate-300">No available players</span> : <button type="button" className={`${buttonClass} min-h-11 rounded-xl px-5`} disabled={busy || pendingBids > 0 || queueSettingsDirty || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Select 1st Player<span className="ml-2" aria-hidden="true">→</span></button>)}
                   </div>
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-600">Selection method<select value={selectionMode} onChange={(event) => setSelectionMode(event.target.value)} className={inputClass}><option value="random">Random</option><option value="sequence">Sequence</option></select></label>
-                  <label className="text-xs font-bold text-slate-600">Category<select value={selectionCategory} onChange={(event) => setSelectionCategory(event.target.value)} className={inputClass}><option value="">All categories</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
+                  <label className="text-xs font-bold text-slate-300">Selection method<select value={selectionMode} onChange={(event) => setSelectionMode(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-sm font-normal text-white outline-none focus:border-orange-500"><option value="random">Random player</option><option value="sequence">Player number order</option></select></label>
+                  <label className="text-xs font-bold text-slate-300">Category filter<select value={selectionCategory} onChange={(event) => setSelectionCategory(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-sm font-normal text-white outline-none focus:border-orange-500"><option value="">All categories</option>{playerCategories.map((category) => <option key={category}>{category}</option>)}</select></label>
                 </div>
-                {selectionMode === "random" && currentPlayer && <p className="mt-3 text-xs text-slate-600">Calling another random player replaces the current player without marking them sold or unsold.</p>}
-                {selectionMode === "sequence" && currentPlayer && <p className="mt-3 text-xs text-slate-600">Sequence calls the next available player in ascending player-number order.</p>}
-                {availablePlayers.length === 0 && <p className="mt-3 text-sm font-semibold text-slate-600">No available players remain.</p>}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-black text-orange-800" disabled={busy || unsoldPlayers === 0} onClick={() => void reauctionUnsoldPlayers()}>Re-auction unsold players</button>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-slate-400">{queueSettingsDirty ? "Queue settings changed. Click Apply changes before selecting the next player." : appliedSelectionMode === "random" ? "A random available player is selected." : "Selects the lowest-numbered available player."} {currentPlayer?.status === "available" && "Calling another player replaces the current player without recording a result."}</p>
+                  <button type="button" className="rounded-xl border border-orange-300/30 bg-orange-400/10 px-4 py-2.5 text-sm font-bold text-orange-200 transition hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-40" disabled={busy || unsoldPlayers === 0} onClick={() => void reauctionUnsoldPlayers()}>Re-auction unsold <span className="ml-1 rounded-full bg-orange-300/20 px-2 py-0.5 text-xs">{unsoldPlayers}</span></button>
                 </div>
               </div>
-              <div className="mt-5 rounded-xl bg-slate-50 p-4">
-                <h3 className="font-extrabold text-slate-900">Current bid</h3>
+              <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 p-4 sm:p-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div><p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">On the block</p><h3 className="mt-1 text-lg font-extrabold text-white">Current player & bidding</h3></div>
+                  {currentPlayer && <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wide ${currentPlayer.status === "available" ? "bg-emerald-400/15 text-emerald-300" : currentPlayer.status === "sold" ? "bg-sky-400/15 text-sky-300" : "bg-rose-400/15 text-rose-300"}`}>{currentPlayer.status === "available" ? "Bidding open" : currentPlayer.status}</span>}
+                </div>
                 {currentPlayer ? <>
-                  <div className="relative mt-3 flex items-center gap-4 overflow-hidden rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="relative flex min-h-28 items-center gap-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-white/10 to-white/5 p-4 sm:p-5">
                     {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} />}
-                    {currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt="" width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}
-                    <div><p className="text-xs font-bold uppercase text-orange-700">Player #{currentPlayer.player_number} · {currentPlayer.category}</p><p className="mt-1 text-xl font-black text-slate-950">{currentPlayer.full_name}</p><p className="text-sm text-slate-600">{currentPlayer.role || "Player"}{currentPlayer.previous_team ? ` · ${currentPlayer.previous_team}` : ""}</p></div>
+                    {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={88} height={88} className="h-20 w-20 shrink-0 rounded-2xl border border-white/10 object-cover sm:h-24 sm:w-24" /> : <div className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-orange-400/15 text-2xl font-black text-orange-200 sm:h-24 sm:w-24">{currentPlayer.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>}
+                    <div className="min-w-0"><p className="text-xs font-black uppercase tracking-wider text-orange-300">#{currentPlayer.player_number} <span className="mx-1 text-white/30">·</span> {currentPlayer.category}</p><p className="mt-1 truncate text-2xl font-black tracking-tight text-white sm:text-3xl">{currentPlayer.full_name}</p><p className="mt-1 text-sm text-slate-300">{currentPlayer.role || "Player"}{currentPlayer.previous_team ? ` · ${currentPlayer.previous_team}` : ""}</p></div>
                   </div>
-                  {currentPlayer.status === "sold" ? <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                  {currentPlayer.status === "sold" ? <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div>
-                      <p className="text-2xl font-black text-slate-950">{currentPlayer.sold_price ?? 0} points</p>
-                      <p className="text-sm text-slate-600">Sold to {soldTeam?.name ?? "team"}.</p>
+                      <p className="text-3xl font-black text-white">{currentPlayer.sold_price ?? 0} <span className="text-sm text-slate-400">points</span></p>
+                      <p className="mt-1 text-sm text-slate-300">Sold to {soldTeam?.name ?? "team"}.</p>
                     </div>
-                    <button type="button" disabled={busy} className="w-full rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800" onClick={() => setPendingRTMPlayer(currentPlayer)}>RTM</button>
-                    <button type="button" disabled={busy} className="w-full rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-black text-orange-800" onClick={() => void action({ action: "select_player", playerId: currentPlayer.id })}>Re-auction this player</button>
-                    <button className={buttonClass + " w-full"} disabled={busy || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Next Player</button>
+                    <div className="flex flex-wrap gap-2"><button type="button" disabled={busy} className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-sm font-black text-amber-200 hover:bg-amber-300/20 disabled:opacity-50" onClick={() => setPendingRTMPlayer(currentPlayer)}>RTM</button><button type="button" disabled={busy} className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10 disabled:opacity-50" onClick={() => void action({ action: "select_player", playerId: currentPlayer.id })}>Re-Auction</button><button type="button" disabled={busy || pendingBids > 0 || queueSettingsDirty || !canSelectNextPlayer} className="rounded-xl border border-yellow-300 bg-yellow-400 px-4 py-2.5 text-sm font-extrabold text-slate-950 shadow-sm transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void selectPlayer()}>Next Player <span aria-hidden="true">→</span></button></div>
                   </div> : currentPlayer.status === "unsold" ? <div className="mt-4 flex flex-wrap gap-2">
-                    <button className={buttonClass} disabled={busy || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Next Player</button>
-                    <button type="button" disabled={busy} className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-black text-orange-800" onClick={() => void reauctionUnsoldPlayers()}>Re-auction all unsold</button>
+                    <button type="button" className={buttonClass + " rounded-xl"} disabled={busy || queueSettingsDirty || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Next player</button>
+                    <button type="button" disabled={busy} className="rounded-xl border border-orange-300/30 bg-orange-300/10 px-4 py-2.5 text-sm font-black text-orange-200 hover:bg-orange-300/20 disabled:opacity-50" onClick={() => void reauctionUnsoldPlayers()}>Re-auction all unsold</button>
                   </div> : <>
-                    <p className="mt-4 text-3xl font-black text-slate-950">{data.tournament.current_bid ?? data.tournament.base_price} <span className="text-sm font-bold text-slate-500">points</span></p>
-                    <p className="text-sm text-slate-600">{currentTeam ? `Highest bid: ${currentTeam.name}` : "No bids yet"}</p>
-                    <label className="mt-3 block text-xs font-bold text-slate-600">Bid amount (uses the matching increment range)<div className="mt-1 flex overflow-hidden rounded-lg border border-slate-300 bg-white"><button type="button" onClick={() => adjustBid("down")} disabled={Number(bidAmount) <= minimumSelectableBid} className="w-10 border-r border-slate-300 text-lg font-black text-slate-700 disabled:opacity-40">−</button><input value={bidAmount} onChange={(event) => setBidDraft({ key: bidDraftKey, value: event.target.value })} onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); adjustBid(event.key === "ArrowUp" ? "up" : "down"); } }} type="number" min={minimumSelectableBid} step="any" className="bid-amount h-10 min-w-0 flex-1 px-3 text-sm font-normal outline-none" /><button type="button" onClick={() => adjustBid("up")} className="w-10 border-l border-slate-300 text-lg font-black text-slate-700">+</button></div></label>
-                    {data.tournament.current_bid != null && <p className="mt-1 text-xs text-slate-500">To correct the current bid, enter a lower amount and select the team. New higher bids still follow the configured increment.</p>}
+                    <div className="mt-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{currentTeam ? `Highest bid · ${currentTeam.name}` : "Opening price"}</p><p className="mt-1 text-4xl font-black tracking-tight text-orange-300 sm:text-5xl">{data.tournament.current_bid ?? currentCategory?.base_price ?? data.tournament.base_price}<span className="ml-2 text-sm font-bold text-slate-400">pts</span></p></div><div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-right"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Bid increment</p><p className="mt-1 text-lg font-black text-white">{incrementForBid(data.tournament, data.tournament.current_bid ?? currentCategory?.base_price ?? data.tournament.base_price)} pts</p></div></div>
+                    <label className="mt-4 block text-xs font-bold text-slate-300">Set bid amount<div className="mt-1 flex max-w-md overflow-hidden rounded-xl border border-white/15 bg-white text-slate-900 shadow-inner"><button type="button" aria-label="Decrease bid" onClick={() => adjustBid("down")} disabled={Number(bidAmount) <= minimumSelectableBid} className="w-12 border-r border-slate-200 text-xl font-black text-slate-700 disabled:opacity-40">−</button><input aria-label="Bid amount" value={bidAmount} onChange={(event) => setBidDraft({ key: bidDraftKey, value: event.target.value })} onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); adjustBid(event.key === "ArrowUp" ? "up" : "down"); } }} type="number" min={minimumSelectableBid} step="any" className="bid-amount h-12 min-w-0 flex-1 px-3 text-lg font-black outline-none" /><button type="button" aria-label="Increase bid" onClick={() => adjustBid("up")} className="w-12 border-l border-slate-200 text-xl font-black text-slate-700">+</button></div></label>
+                    {data.tournament.current_bid != null && <p className="mt-2 text-xs text-slate-400">To correct the bid, enter a lower amount and select the team. Higher bids follow the configured increment.</p>}
                     <div className="mt-4">
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Select highest bidder{pendingBids > 0 ? " · Updating" : ""}</p>
-                      <div className="mt-2 flex flex-wrap gap-2">{data.teams.map((team) => <button key={team.id} disabled={Number(bidAmount) < minimumSelectableBid || Number(bidAmount) > maximumBidForTeam(team)} title={`Maximum bid ${maximumBidForTeam(team)} · reserve ${reserveForTeam(team)}`} className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-xs font-extrabold text-orange-800 hover:bg-orange-50 disabled:opacity-40" onClick={() => void placeTeamBid(team)}>{team.name}</button>)}</div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Choose a team to place the bid{pendingBids > 0 ? " · Updating" : ""}</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">{data.teams.map((team) => {
+                        const maxBid = maximumBidForTeam(team);
+                        const overBudget = Number(bidAmount) > maxBid;
+                        const atCategoryLimit = categoryLimitReached(team);
+                        return <button key={team.id} type="button" disabled={busy || pendingBids > 0 || Number(bidAmount) < minimumSelectableBid || overBudget || atCategoryLimit} title={atCategoryLimit ? `Maximum ${currentCategory?.max_players ?? 0} players in this category` : `Maximum bid ${maxBid} · reserve ${reserveForTeam(team)}`} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-2.5 text-left transition hover:border-orange-300/50 hover:bg-orange-400/10 disabled:cursor-not-allowed disabled:opacity-40 sm:p-3" onClick={() => void placeTeamBid(team)}><TeamMark name={team.name} logoUrl={team.logo_url} size="sm" /><span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-white">{team.name}</span><span className="mt-0.5 block text-[10px] font-semibold text-slate-400">{atCategoryLimit ? "Category full" : `Balance ${team.points_remaining} · Max ${maxBid}`}</span></span></button>;
+                      })}</div>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button className={buttonClass} disabled={busy || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Next Player</button>
-                      <button disabled={busy || pendingBids > 0 || !data.tournament.current_bid_team_id} className={buttonClass} onClick={() => void action({ action: "finalize", result: "sold" })}>Sold</button>
-                      <button disabled={busy || pendingBids > 0} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold" onClick={() => void action({ action: "finalize", result: "unsold" })}>Unsold</button>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                      <button type="button" disabled={busy || pendingBids > 0 || !data.tournament.current_bid_team_id} className="min-h-12 rounded-xl border border-green-300 bg-green-600 px-4 py-2.5 text-base font-extrabold text-white shadow-sm transition hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void action({ action: "finalize", result: "sold" })}>✓ Sold</button>
+                      <button type="button" disabled={busy || pendingBids > 0} className="min-h-12 rounded-xl border border-red-300 bg-red-600 px-4 py-2.5 text-base font-extrabold text-white shadow-sm transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void action({ action: "finalize", result: "unsold" })}>Unsold</button>
+                      <button type="button" disabled={busy || pendingBids > 0 || queueSettingsDirty || !canSelectNextPlayer} className="min-h-12 rounded-xl border border-yellow-300 bg-yellow-400 px-4 py-2.5 text-sm font-extrabold text-slate-950 shadow-sm transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void selectPlayer()}>Next Player <span aria-hidden="true">→</span></button>
                     </div>
                   </>}
-                </> : <p className="mt-3 rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-600">No player is currently on the auction block.</p>}
+                </> : <div className="grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-6 text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-orange-400/10 text-2xl text-orange-300">↑</div><p className="mt-3 text-base font-bold text-white">Waiting for the next player</p><p className="mt-1 text-sm text-slate-400">Use the player queue above to call someone to the block.</p></div></div>}
               </div>
             </>
           )}
@@ -903,10 +1112,10 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <p className="mt-2 text-sm text-slate-600">Only teams that still have RTM available and can afford the current price are enabled.</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {data.teams.filter((team) => team.id !== pendingRTMPlayer.sold_team_id).map((team) => {
-                const soldCount = (data.players ?? []).filter((player) => player.status === "sold" && player.sold_team_id === team.id).length;
-                const reserve = Math.max((data.tournament.min_squad_size ?? 0) - soldCount - 1, 0) * (data.tournament.base_price ?? 0);
-                const maximumBid = Math.max(0, Number(team.points_remaining) - reserve + (team.rtm_count ?? 0) * (data.tournament.base_price ?? 0));
-                const isEligible = (team.rtm_count ?? 0) > 0 && Number(pendingRTMPlayer.sold_price ?? 0) <= maximumBid;
+                const rtmCategory = data.categories.find((category) => category.id === pendingRTMPlayer.category_id);
+                const reserve = reserveForTeam(team, pendingRTMPlayer.category_id);
+                const maximumBid = Math.max(0, Number(team.points_remaining) - reserve + (team.rtm_count ?? 0) * (rtmCategory?.base_price ?? data.tournament.base_price));
+                const isEligible = (team.rtm_count ?? 0) > 0 && !categoryLimitReached(team, pendingRTMPlayer.category_id) && Number(pendingRTMPlayer.sold_price ?? 0) <= maximumBid;
                 return <button key={team.id} type="button" disabled={busy || !isEligible} onClick={() => void applyTeamRTM(team)} className={`rounded-xl border p-3 text-left transition ${isEligible ? "border-amber-300 bg-amber-50 text-amber-900 hover:border-amber-400" : "border-slate-200 bg-slate-100 text-slate-400 opacity-60"}`}>
                   <div className="flex items-center justify-between gap-3"><span className="font-bold">{team.name}</span>{(team.rtm_count ?? 0) > 0 ? <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700">RTM x{team.rtm_count}</span> : <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Exhausted</span>}</div>
                   <p className="mt-2 text-xs">Max bid: {maximumBid}</p>
@@ -940,13 +1149,45 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <div className="mt-6 flex justify-end gap-3"><button type="button" disabled={busy} onClick={() => setPendingDeleteSponsor(null)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button><button type="button" disabled={busy} onClick={() => void confirmDeleteSponsor()} className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-red-700 disabled:opacity-50">{busy ? "Deleting…" : "Delete sponsor"}</button></div>
           </section>
         </div>}
+        {pendingDeletePlayer && <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPendingDeletePlayer(null); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="delete-player-title" className="w-full max-w-md rounded-2xl border border-white/70 bg-white p-6 shadow-2xl">
+            <p className="text-xs font-black uppercase tracking-wider text-red-700">Player settings</p>
+            <h2 id="delete-player-title" className="mt-1 text-xl font-black text-slate-950">Delete {pendingDeletePlayer.full_name}?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">This permanently removes player #{pendingDeletePlayer.player_number} from this tournament. Players can only be deleted before the auction starts.</p>
+            <div className="mt-6 flex justify-end gap-3"><button type="button" disabled={busy} onClick={() => setPendingDeletePlayer(null)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button><button type="button" disabled={busy} onClick={() => void confirmDeletePlayer()} className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-red-700 disabled:opacity-50">{busy ? "Deleting…" : "Delete player"}</button></div>
+          </section>
+        </div>}
+        {resetDialogOpen && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="reset-auction-title" className="w-full max-w-md rounded-2xl border border-white/70 bg-white p-6 shadow-2xl">
+            <p className="text-xs font-black uppercase tracking-wider text-red-700">Auction reset</p>
+            <h2 id="reset-auction-title" className="mt-1 text-xl font-black text-slate-950">Reset this auction?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">All players will return to available, team budgets and used RTMs will be restored, and the auction will return to setup. Teams, players, categories, and sponsors will be kept.</p>
+            {data.tournament.auction_mode === "live" && <label className="mt-4 block text-xs font-bold text-slate-600">Admin password<input type="password" autoComplete="current-password" value={resetPin} onChange={(event) => setResetPin(event.target.value)} className={inputClass} required /></label>}
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" disabled={busy} onClick={() => setResetDialogOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button>
+              <button type="button" disabled={busy || (data.tournament.auction_mode === "live" && !resetPin)} onClick={() => void confirmAuctionReset()} className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-red-700 disabled:opacity-50">{busy ? "Resetting…" : "Reset auction"}</button>
+            </div>
+          </section>
+        </div>}
+        {pendingMode && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="mode-change-title" className="w-full max-w-md rounded-2xl border border-white/70 bg-white p-6 shadow-2xl">
+            <p className="text-xs font-black uppercase tracking-wider text-orange-700">Auction mode</p>
+            <h2 id="mode-change-title" className="mt-1 text-xl font-black text-slate-950">Switch to {pendingMode === "live" ? "Live" : "Trial Mode"}?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">Enter the admin password to confirm this mode change.</p>
+            <label className="mt-4 block text-xs font-bold text-slate-600">Admin password<input type="password" autoComplete="current-password" value={modePin} onChange={(event) => setModePin(event.target.value)} className={inputClass} required /></label>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" disabled={busy} onClick={() => { setPendingMode(null); setModePin(""); }} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</button>
+              <button type="button" disabled={busy || !modePin} onClick={() => void confirmAuctionModeChange()} className={buttonClass}>{busy ? "Saving…" : "Switch mode"}</button>
+            </div>
+          </section>
+        </div>}
         {editingPlayer && <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/60 p-4">
           <form onSubmit={savePlayer} className="my-auto max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-wide text-orange-700">Player editor</p><h2 className="mt-1 text-xl font-black text-slate-950">{editingPlayer.full_name}</h2></div><button type="button" onClick={() => setEditingPlayer(null)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">Close</button></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-bold text-slate-600">Player number<input type="number" min={1} value={editingPlayer.player_number} onChange={(event) => updateEditingPlayer("player_number", Number(event.target.value))} className={inputClass} required /></label>
               <label className="text-xs font-bold text-slate-600">Full name<input value={editingPlayer.full_name} onChange={(event) => updateEditingPlayer("full_name", event.target.value)} className={inputClass} maxLength={160} required /></label>
-              <label className="text-xs font-bold text-slate-600">Category<input value={editingPlayer.category} onChange={(event) => updateEditingPlayer("category", event.target.value)} className={inputClass} maxLength={80} required /></label>
+              <label className="text-xs font-bold text-slate-600">Category<select value={editingPlayer.category} onChange={(event) => updateEditingPlayer("category", event.target.value)} className={inputClass} required disabled={busy}>{data.categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></label>
               <label className="text-xs font-bold text-slate-600">Role<input value={editingPlayer.role ?? ""} onChange={(event) => updateEditingPlayer("role", event.target.value || null)} className={inputClass} maxLength={100} /></label>
               <label className="text-xs font-bold text-slate-600">Batting style<input value={editingPlayer.batting_style ?? ""} onChange={(event) => updateEditingPlayer("batting_style", event.target.value || null)} className={inputClass} maxLength={100} /></label>
               <label className="text-xs font-bold text-slate-600">Bowling style<input value={editingPlayer.bowling_style ?? ""} onChange={(event) => updateEditingPlayer("bowling_style", event.target.value || null)} className={inputClass} maxLength={100} /></label>

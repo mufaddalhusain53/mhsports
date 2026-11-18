@@ -15,9 +15,9 @@ export default function AuctionResultTag({ status, className = "" }: AuctionResu
             ? "border-emerald-100 bg-emerald-500 text-slate-950"
             : "border-red-100 bg-red-500 text-white"
       } ${className}`}
-      aria-label={isRTM ? "Player sold through Right To Match" : sold ? "Player sold" : "Player unsold"}
+      aria-label={isRTM ? "Player sold through RTM" : sold ? "Player sold" : "Player unsold"}
     >
-      {isRTM ? "Right To Match" : sold ? "Sold" : "Unsold"}
+      {isRTM ? "RTM" : sold ? "Sold" : "Unsold"}
     </div>
   );
 }

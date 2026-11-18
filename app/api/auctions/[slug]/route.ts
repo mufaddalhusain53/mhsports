@@ -7,7 +7,7 @@ export async function GET(_request: Request, { params }: Context) {
   const { slug } = await params;
   const { data: tournament, error: tournamentError } = await supabaseAdmin
     .from("auction_tournaments")
-    .select("id,slug,name,status,points_per_team,base_price,bid_increment,bid_increment_rules,min_squad_size,max_squad_size,current_player_id,current_bid,current_bid_team_id,background_url,tournament_logo_url,organizer_logo_urls,updated_at")
+    .select("id,slug,name,status,scheduled_date,points_per_team,base_price,bid_increment,bid_increment_rules,min_squad_size,max_squad_size,current_player_id,current_bid,current_bid_team_id,background_url,tournament_logo_url,organizer_logo_urls,updated_at")
     .eq("slug", slug)
     .maybeSingle();
   if (tournamentError) {

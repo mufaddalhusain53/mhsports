@@ -108,7 +108,12 @@ export default function AuctionProjector({ slug }: { slug: string }) {
     return (data?.players ?? []).filter((player) =>
       !query || `${player.full_name} ${player.player_number} ${player.category} ${player.status}`.toLocaleLowerCase().includes(query)
     );
-  }, [data, search]);
+  }, [data?.players, search]);
+  const categoryValues = useMemo(
+    () => Array.from(new Set((data?.players ?? []).map((player) => player.category.trim()).filter((value) => value && value.toUpperCase() !== "NONE"))),
+    [data?.players]
+  );
+  const soldPlayers = useMemo(() => (data?.players ?? []).filter((player) => player.status === "sold"), [data?.players]);
 
   async function toggleFullscreen() {
     const projector = document.getElementById("auction-projector");
@@ -126,12 +131,10 @@ export default function AuctionProjector({ slug }: { slug: string }) {
     : undefined;
   const activeTeam = currentTeam ?? resultTeam;
   const activeTeamRoster = activeTeam ? players.filter((player) => player.status === "sold" && player.sold_team_id === activeTeam.id).length : 0;
-  const soldPlayers = players.filter((player) => player.status === "sold");
   const organizerLogos = tournament.organizer_logo_urls ?? [];
   const sponsorLogos = sponsors.filter((sponsor) => sponsor.logo_url);
   const organizerLogo = organizerLogos.length ? organizerLogos[logoIndex % organizerLogos.length] : null;
   const sponsor = sponsorLogos.length ? sponsorLogos[logoIndex % sponsorLogos.length] : null;
-  const categoryValues = Array.from(new Set((players ?? []).map((player) => player.category.trim()).filter((value) => value && value.toUpperCase() !== "NONE")));
   const shouldDisplayCategory = categoryValues.length > 1;
   const roleValue = currentPlayer ? (currentPlayer.role ?? (shouldDisplayCategory ? currentPlayer.category : null)) : null;
   const detailCards = currentPlayer ? [
@@ -225,7 +228,7 @@ export default function AuctionProjector({ slug }: { slug: string }) {
                 const currentMax = maxBid(team.points_remaining, roster.length, tournament.min_squad_size, tournament.base_price, team.rtm_count ?? 0);
                 return <article key={team.id} className="flex min-h-0 items-center gap-3 overflow-hidden rounded-[1rem] border border-orange-300/80 bg-slate-950/20 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] backdrop-blur-[1px] sm:gap-4 sm:p-4">
                   <TeamMark name={team.name} logoUrl={team.logo_url} size="md" />
-                  <div className="min-w-0 flex-1"><h2 className="truncate text-sm font-black uppercase sm:text-xl">{team.name}</h2><p className="mt-1 text-xs text-white/70 sm:text-sm">{roster.length} players</p>{(team.rtm_count ?? 0) > 0 && <p className="mt-1 text-[10px] font-bold text-amber-200 sm:text-xs">RTM x{team.rtm_count}</p>}<p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Spent {points(spent)}</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Max {points(currentMax)}</p></div>
+                  <div className="min-w-0 flex-1"><h2 className="truncate text-sm font-black uppercase sm:text-xl">{team.name}</h2><p className="mt-1 text-xs text-white/70 sm:text-sm">{roster.length} players</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Spent {points(spent)}</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Max {points(currentMax)}</p></div>
                   <div className="text-right"><p className="text-lg font-black text-orange-300 sm:text-2xl">{points(team.points_remaining)}</p></div>
                 </article>;
               })}

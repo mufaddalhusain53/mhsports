@@ -1,5 +1,6 @@
 import { jwtVerify, SignJWT } from "jose";
 import { cookies } from "next/headers";
+import { timingSafeEqual } from "node:crypto";
 
 const COOKIE_NAME = "mh_admin_session";
 
@@ -11,6 +12,16 @@ function getSecretKey() {
   }
 
   return new TextEncoder().encode(secret);
+}
+
+export function verifyAdminPin(pin: string) {
+  const expectedPin = process.env.ADMIN_PIN;
+  if (!expectedPin) {
+    throw new Error("ADMIN_PIN is not configured.");
+  }
+  const provided = Buffer.from(pin);
+  const expected = Buffer.from(expectedPin);
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
 export async function createAdminSession() {

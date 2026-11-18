@@ -77,7 +77,21 @@ export async function POST(request: Request, { params }: Context) {
     .from("auction_tournaments").select("id,status").eq("slug", slug).maybeSingle();
   if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
   if (!tournament) return NextResponse.json({ error: "Auction tournament not found." }, { status: 404 });
-  const insertRows = players.map((player) => ({ ...player, tournament_id: tournament.id }));
+  if (tournament.status !== "setup") {
+    return NextResponse.json({ error: "Player imports are locked after the auction starts." }, { status: 409 });
+  }
+  const { data: categories, error: categoriesError } = await supabaseAdmin
+    .from("auction_categories").select("id,name").eq("tournament_id", tournament.id);
+  if (categoriesError) return NextResponse.json({ error: `Unable to load auction categories: ${categoriesError.message}` }, { status: 500 });
+  const categoryByName = new Map((categories ?? []).map((category) => [category.name.toLowerCase(), category]));
+  const insertRows = [];
+  for (const player of players) {
+    const category = categoryByName.get(player.category.toLowerCase());
+    if (!category) {
+      return NextResponse.json({ error: `Category "${player.category}" is not configured for this tournament. Add it in tournament setup before importing players.` }, { status: 400 });
+    }
+    insertRows.push({ ...player, category: category.name, category_id: category.id, tournament_id: tournament.id });
+  }
   const { error } = await supabaseAdmin.from("auction_players")
     .upsert(insertRows, { onConflict: "tournament_id,player_number" });
   if (error) {
@@ -88,6 +102,39 @@ export async function POST(request: Request, { params }: Context) {
     }, { status: error.code === "23505" ? 409 : 500 });
   }
   return NextResponse.json({ imported: players.length }, { status: 201 });
+}
+
+export async function DELETE(request: Request, { params }: Context) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Admin authentication required." }, { status: 401 });
+  }
+  const { slug } = await params;
+  let body: { playerId?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "A valid JSON request is required." }, { status: 400 });
+  }
+  const playerId = typeof body?.playerId === "string" ? body.playerId : "";
+  if (!playerId) return NextResponse.json({ error: "Choose a valid player to delete." }, { status: 400 });
+
+  const { data: tournament, error: tournamentError } = await supabaseAdmin
+    .from("auction_tournaments").select("id,status,current_player_id").eq("slug", slug).maybeSingle();
+  if (tournamentError) return NextResponse.json({ error: tournamentError.message }, { status: 500 });
+  if (!tournament) return NextResponse.json({ error: "Auction tournament not found." }, { status: 404 });
+  if (tournament.status !== "setup") {
+    return NextResponse.json({ error: "Players can only be deleted before the auction starts." }, { status: 409 });
+  }
+
+  const { data, error } = await supabaseAdmin.from("auction_players")
+    .delete()
+    .eq("id", playerId)
+    .eq("tournament_id", tournament.id)
+    .select("id")
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: `Unable to delete player: ${error.message}` }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Player not found in this tournament." }, { status: 404 });
+  return NextResponse.json({ success: true });
 }
 
 export async function PATCH(request: Request, { params }: Context) {
@@ -120,15 +167,36 @@ export async function PATCH(request: Request, { params }: Context) {
     return NextResponse.json({ error: "Enter a valid player number, name, category, and optional photo URL." }, { status: 400 });
   }
   const { data: tournament, error: tournamentError } = await supabaseAdmin
-    .from("auction_tournaments").select("id").eq("slug", slug).maybeSingle();
+    .from("auction_tournaments").select("id,status,current_player_id,current_bid").eq("slug", slug).maybeSingle();
   if (tournamentError) return NextResponse.json({ error: tournamentError.message }, { status: 500 });
   if (!tournament) return NextResponse.json({ error: "Auction tournament not found." }, { status: 404 });
+  const { data: categories, error: categoriesError } = await supabaseAdmin
+    .from("auction_categories").select("id,name").eq("tournament_id", tournament.id);
+  if (categoriesError) return NextResponse.json({ error: `Unable to load auction categories: ${categoriesError.message}` }, { status: 500 });
+  const categoryName = category;
+  const categoryDefinition = (categories ?? []).find((item) => item.name.toLowerCase() === categoryName.toLowerCase());
+  if (!categoryDefinition) {
+    return NextResponse.json({ error: `Category "${categoryName}" is not configured for this tournament.` }, { status: 400 });
+  }
+  const { data: existingPlayer, error: existingPlayerError } = await supabaseAdmin.from("auction_players")
+    .select("category_id,status").eq("id", id).eq("tournament_id", tournament.id).maybeSingle();
+  if (existingPlayerError) return NextResponse.json({ error: existingPlayerError.message }, { status: 500 });
+  if (!existingPlayer) return NextResponse.json({ error: "Player not found in this tournament." }, { status: 404 });
+  if (existingPlayer.category_id !== categoryDefinition.id) {
+    if (existingPlayer.status === "sold") {
+      return NextResponse.json({ error: "Re-auction this player before changing their category." }, { status: 409 });
+    }
+    if (id === tournament.current_player_id && tournament.current_bid !== null) {
+      return NextResponse.json({ error: "A player's category cannot be changed while they have an active bid." }, { status: 409 });
+    }
+  }
 
   const { data, error } = await supabaseAdmin.from("auction_players")
     .update({
       player_number: playerNumber,
       full_name: fullName,
-      category,
+      category: categoryDefinition.name,
+      category_id: categoryDefinition.id,
       role: role || null,
       batting_style: battingStyle || null,
       bowling_style: bowlingStyle || null,

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
@@ -15,7 +15,7 @@ type Player = {
 };
 type Sponsor = { id: string; name: string; logo_url: string | null; website_url: string | null };
 type Tournament = {
-  id: string; slug: string; name: string; status: string; points_per_team: number; base_price: number;
+  id: string; slug: string; name: string; status: string; scheduled_date: string | null; points_per_team: number; base_price: number;
   bid_increment: number; min_squad_size: number; max_squad_size: number; current_player_id: string | null;
   current_bid: number | null; current_bid_team_id: string | null; background_url: string | null; tournament_logo_url: string | null; updated_at: string;
 };
@@ -30,11 +30,58 @@ function formatPoints(value: number | null | undefined) {
   return value === null || value === undefined ? "—" : Number(value).toLocaleString("en-IN");
 }
 
+function formatAuctionDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return value;
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric" }).format(date);
+}
+
 function getMaxBid(pointsRemaining: number, soldCount: number, minSquadSize: number, basePrice: number, rtmCount = 0) {
   const remainingPlayers = Math.max(minSquadSize - soldCount, 0);
   const reserve = Math.max(remainingPlayers - 1, 0) * basePrice;
   return Math.max(0, pointsRemaining - reserve + rtmCount * basePrice);
 }
+
+const PlayerCard = memo(function PlayerCard({ player, teams, shouldDisplayCategory }: {
+  player: Player;
+  teams: Team[];
+  shouldDisplayCategory: boolean;
+}) {
+  const soldTeam = teams.find((item) => item.id === player.sold_team_id);
+  const playerRole = player.role || (shouldDisplayCategory ? player.category : null);
+  return (
+    <article className={`relative min-h-36 overflow-hidden rounded-xl border p-3 shadow-md backdrop-blur-sm ${player.status === "sold" ? "border-green-400/60 bg-gradient-to-r from-green-900/80 to-slate-900/75 text-white" : player.status === "unsold" ? "border-red-300/70 bg-gradient-to-r from-red-900/75 to-slate-900/75 text-white" : "border-white/30 bg-slate-950/55 text-white"}`}>
+      <span className={`absolute left-0 top-0 rounded-br-lg px-2 py-1 text-xs font-black ${player.status === "sold" ? "bg-green-500" : player.status === "unsold" ? "bg-red-400 text-red-950" : "bg-slate-300 text-slate-900"}`}>#{player.player_number}</span>
+      <div className="flex gap-3 pt-2">
+        {player.photo_url ? <AuctionImage src={player.photo_url} alt="" width={80} height={80} className="h-20 w-20 shrink-0 rounded-lg border border-white/40 object-cover" /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-white/15 text-2xl" aria-hidden="true">🏏</div>}
+        <div className="min-w-0 flex-1"><h3 className="truncate text-base font-black text-yellow-300">{player.full_name}</h3>{playerRole && <p className="mt-1 text-sm font-semibold">{playerRole}</p>}<p className="text-xs text-white/85">{player.batting_style || "—"}</p><p className="text-xs text-white/85">{player.bowling_style || "—"}</p></div>
+      </div>
+      <div className="mt-2 border-t border-white/20 pt-1 text-xs font-black uppercase">{player.status === "sold" ? `${soldTeam?.name ?? "Team"} · ${formatPoints(player.sold_price)} pts` : player.status === "unsold" ? "Unsold" : "Available"}</div>
+    </article>
+  );
+});
+
+const AuctionPane = memo(function AuctionPane({ currentPlayer, tournament, teams, currentBidTeam, shouldDisplayCategory }: {
+  currentPlayer: Player | undefined;
+  tournament: Tournament;
+  teams: Team[];
+  currentBidTeam: Team | undefined;
+  shouldDisplayCategory: boolean;
+}) {
+  return <div className="h-[250px] self-start rounded-2xl border border-white/30 bg-slate-950/45 p-5 text-white shadow-lg backdrop-blur-md">
+    {currentPlayer && <div className="relative">
+      {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="right-0 top-0" />}
+      <div className="flex items-center gap-3">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}<div><p className="text-xl font-black">{currentPlayer.full_name}</p><p className="text-sm text-white/80">#{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}</p>{[currentPlayer.role, currentPlayer.batting_style, currentPlayer.bowling_style].filter(Boolean).length > 0 && <p className="text-xs text-white/70">{[currentPlayer.role, currentPlayer.batting_style, currentPlayer.bowling_style].filter(Boolean).join(" · ")}</p>}{currentPlayer.previous_team && <p className="text-xs text-white/70">Team Last Year ({currentPlayer.previous_team})</p>}</div></div>
+      {currentPlayer.status !== "unsold" && <div className="mt-4 flex items-baseline gap-2"><span className="text-3xl font-black">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? tournament.base_price)}</span><span className="text-sm font-bold text-white/75">points</span></div>}
+      {currentBidTeam && currentPlayer.status === "available" ? <div className="mt-2 flex items-center gap-2 text-sm font-bold text-white/90"><TeamMark name={currentBidTeam.name} logoUrl={currentBidTeam.logo_url} size="sm" /><span>{currentBidTeam.name}</span></div> : <p className="mt-1 text-sm text-white/80">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : "No bids yet"}</p>}
+    </div>}
+    {!currentPlayer && tournament.status === "setup" && tournament.scheduled_date && <div className="flex h-full flex-col items-center justify-center text-center">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-200">Auction scheduled for</p>
+      <p className="mt-2 text-2xl font-black">{formatAuctionDate(tournament.scheduled_date)}</p>
+    </div>}
+  </div>;
+});
 
 export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; view: View; teamSlug?: string }) {
   const [data, setData] = useState<AuctionData | null>(null);
@@ -103,55 +150,32 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
   const team = data?.teams.find((item) => item.slug === selectedTeamSlug);
   const currentPlayer = data?.players.find((player) => player.id === data.tournament.current_player_id);
   const currentBidTeam = data?.teams.find((item) => item.id === data.tournament.current_bid_team_id);
-  const categories = useMemo(() => Array.from(new Set((data?.players ?? []).map((player) => player.category.trim()).filter((value) => value && value.toUpperCase() !== "NONE"))).sort(), [data]);
+  const filteredSoldPlayers = useMemo(() => (data?.players ?? []).filter((player) => player.status === "sold"), [data?.players]);
+  const filteredAvailableCount = useMemo(() => (data?.players ?? []).filter((player) => player.status === "available").length, [data?.players]);
+  const categories = useMemo(() => Array.from(new Set((data?.players ?? []).map((player) => player.category.trim()).filter((value) => value && value.toUpperCase() !== "NONE"))).sort(), [data?.players]);
   const shouldDisplayCategory = categories.length > 1;
   const filteredPlayers = useMemo(() => {
-    if (!data) return [];
+    const players = data?.players ?? [];
     const query = search.trim().toLocaleLowerCase();
-    return data.players.filter((player) => {
+    return players.filter((player) => {
       const matchesStatus = filterStatus === "all" || player.status === filterStatus;
       const matchesCategory = filterCategory === "all" || player.category === filterCategory;
       const matchesSearch = !query || `${player.full_name} ${player.player_number} ${player.category}`.toLocaleLowerCase().includes(query);
-      const matchesTeam = screen !== "overview" || !team || Boolean(player.sold_team_id === team.id);
+      const matchesTeam = screen !== "overview" || !team || player.sold_team_id === team.id;
       return matchesStatus && matchesCategory && matchesSearch && matchesTeam;
     });
-  }, [data, filterCategory, filterStatus, search, screen, team]);
+  }, [data?.players, filterCategory, filterStatus, search, screen, team]);
 
   if (loading) return <main className="min-h-screen bg-slate-50 px-4 py-20 text-center text-slate-600">Loading live auction…</main>;
   if (error || !data) return <main className="min-h-screen bg-slate-50 px-4 py-20 text-center"><p className="font-bold text-red-700">{error || "Auction not found."}</p><Link href="/auction" className="mt-4 inline-block font-bold text-orange-700">Back to auctions</Link></main>;
 
   const { tournament, teams, players, sponsors } = data;
-  const soldPlayers = players.filter((player) => player.status === "sold");
-  const activePlayers = players.filter((player) => player.status === "available").length;
-  function PlayerCard({ player }: { player: Player }) {
-    const soldTeam = teams.find((item) => item.id === player.sold_team_id);
-    const playerRole = player.role || (shouldDisplayCategory ? player.category : null);
-    return (
-      <article className={`relative min-h-36 overflow-hidden rounded-xl border p-3 shadow-md backdrop-blur-sm ${player.status === "sold" ? "border-green-400/60 bg-gradient-to-r from-green-900/80 to-slate-900/75 text-white" : player.status === "unsold" ? "border-red-300/70 bg-gradient-to-r from-red-900/75 to-slate-900/75 text-white" : "border-white/30 bg-slate-950/55 text-white"}`}>
-        <span className={`absolute left-0 top-0 rounded-br-lg px-2 py-1 text-xs font-black ${player.status === "sold" ? "bg-green-500" : player.status === "unsold" ? "bg-red-400 text-red-950" : "bg-slate-300 text-slate-900"}`}>#{player.player_number}</span>
-        <div className="flex gap-3 pt-2">
-          {player.photo_url ? <AuctionImage src={player.photo_url} alt="" width={80} height={80} className="h-20 w-20 shrink-0 rounded-lg border border-white/40 object-cover" /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-white/15 text-2xl" aria-hidden="true">🏏</div>}
-          <div className="min-w-0 flex-1"><h3 className="truncate text-base font-black text-yellow-300">{player.full_name}</h3>{playerRole && <p className="mt-1 text-sm font-semibold">{playerRole}</p>}<p className="text-xs text-white/85">{player.batting_style || "—"}</p><p className="text-xs text-white/85">{player.bowling_style || "—"}</p></div>
-        </div>
-        <div className="mt-2 border-t border-white/20 pt-1 text-xs font-black uppercase">{player.status === "sold" ? `${soldTeam?.name ?? "Team"} · ${formatPoints(player.sold_price)} pts` : player.status === "unsold" ? "Unsold" : "Available"}</div>
-      </article>
-    );
-  }
+  const soldPlayers = filteredSoldPlayers;
+  const activePlayers = filteredAvailableCount;
 
   const pageBackground = tournament.background_url
     ? { backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.34), rgba(15, 23, 42, 0.42)), url("${tournament.background_url.replace(/["\\]/g, "")}")` }
     : undefined;
-
-  function AuctionPane() {
-    return <div className="h-[250px] self-start rounded-2xl border border-white/30 bg-slate-950/45 p-5 text-white shadow-lg backdrop-blur-md">
-      {currentPlayer && <div className="relative">
-        {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="right-0 top-0" />}
-        <div className="flex items-center gap-3">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}<div><p className="text-xl font-black">{currentPlayer.full_name}</p><p className="text-sm text-white/80">#{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}</p>{[currentPlayer.role, currentPlayer.batting_style, currentPlayer.bowling_style].filter(Boolean).length > 0 && <p className="text-xs text-white/70">{[currentPlayer.role, currentPlayer.batting_style, currentPlayer.bowling_style].filter(Boolean).join(" · ")}</p>}{currentPlayer.previous_team && <p className="text-xs text-white/70">Team Last Year ({currentPlayer.previous_team})</p>}</div></div>
-        {currentPlayer.status !== "unsold" && <div className="mt-4 flex items-baseline gap-2"><span className="text-3xl font-black">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? tournament.base_price)}</span><span className="text-sm font-bold text-white/75">points</span></div>}
-        {currentBidTeam && currentPlayer.status === "available" ? <div className="mt-2 flex items-center gap-2 text-sm font-bold text-white/90"><TeamMark name={currentBidTeam.name} logoUrl={currentBidTeam.logo_url} size="sm" /><span>{currentBidTeam.name}</span></div> : <p className="mt-1 text-sm text-white/80">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : "No bids yet"}</p>}
-      </div>}
-    </div>;
-  }
 
   return (
     <main style={pageBackground} className={`min-h-screen bg-slate-100 bg-cover bg-fixed bg-center text-slate-950 ${view === "home" ? "bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-orange-100 via-slate-100 to-slate-200" : ""}`}>
@@ -185,7 +209,7 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
 
         {screen === "overview" && !team && <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.65fr)]">
           <div className="grid gap-4">
-            <AuctionPane />
+            <AuctionPane currentPlayer={currentPlayer} tournament={tournament} teams={teams} currentBidTeam={currentBidTeam} shouldDisplayCategory={shouldDisplayCategory} />
             {currentPlayer && !currentPlayer.id && <div className="rounded-2xl border border-white/30 bg-slate-950/60 p-6 text-white shadow-lg backdrop-blur-md">
               {currentPlayer && <div className="relative mt-5 border-t border-white/20 pt-4">
                 {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="right-0 top-3" />}
@@ -211,7 +235,7 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
                 return <button type="button" key={item.id} onClick={() => setSelectedTeamSlug(item.slug)} className="flex min-w-0 items-center gap-3 rounded-xl border border-white/30 bg-white/55 p-3 text-left transition hover:bg-white/75 focus:outline-none focus:ring-2 focus:ring-orange-400">
                   <TeamMark name={item.name} logoUrl={item.logo_url} />
                   <div className="min-w-0 flex-1"><p className="truncate text-xs font-black uppercase text-slate-800">{item.name}</p><p className="mt-1 text-lg font-black text-orange-700">{roster.length}/{tournament.min_squad_size}</p></div>
-                  <div className="text-right"><p className="text-lg font-black text-green-700">{formatPoints(item.points_remaining)}</p><p className="mt-1 text-[11px] font-semibold text-slate-600">Max {formatPoints(maxBid)}</p>{(item.rtm_count ?? 0) > 0 && <p className="mt-1 text-[10px] font-bold uppercase text-slate-500">RTM x{item.rtm_count}</p>}</div>
+                  <div className="text-right"><p className="text-lg font-black text-green-700">{formatPoints(item.points_remaining)}</p><p className="mt-1 text-[11px] font-semibold text-slate-600">Max {formatPoints(maxBid)}</p></div>
                 </button>;
               })}
             </div>
@@ -225,20 +249,20 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
             <div className="grid grid-cols-4 gap-3">
               <div className="rounded-lg border border-white/20 bg-slate-950/25 p-3 text-center"><p className="text-xs font-bold uppercase text-white/70">Remaining</p><p className="mt-2 text-xl font-black">+{formatPoints(team.points_remaining)}</p></div>
               <div className="rounded-lg border border-white/20 bg-slate-950/25 p-3 text-center"><p className="text-xs font-bold uppercase text-white/70">Max</p><p className="mt-2 text-xl font-black">{formatPoints(getMaxBid(team.points_remaining, players.filter((player) => player.sold_team_id === team.id).length, tournament.min_squad_size, tournament.base_price, team.rtm_count ?? 0))}</p></div>
-              <div className="rounded-lg border border-white/20 bg-slate-950/25 p-3 text-center"><p className="text-xs font-bold uppercase text-white/70">Players</p><p className="mt-2 text-xl font-black">{players.filter((player) => player.sold_team_id === team.id).length}/{tournament.min_squad_size}</p>{(team.rtm_count ?? 0) > 0 && <p className="mt-2 text-[11px] font-bold uppercase text-white/70">RTM x{team.rtm_count}</p>}</div>
+              <div className="rounded-lg border border-white/20 bg-slate-950/25 p-3 text-center"><p className="text-xs font-bold uppercase text-white/70">Players</p><p className="mt-2 text-xl font-black">{players.filter((player) => player.sold_team_id === team.id).length}/{tournament.min_squad_size}</p></div>
               <div className="rounded-lg border border-white/20 bg-slate-950/25 p-3 text-center"><p className="text-xs font-bold uppercase text-white/70">Spent</p><p className="mt-2 text-xl font-black">-{formatPoints(tournament.points_per_team - team.points_remaining)}</p></div>
             </div>
           </section>
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">{filteredPlayers.length ? filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} />) : <p className={`${cardClass} text-slate-600`}>Team yet to pick players.</p>}</div>
+          <div className="mt-7 grid gap-3 sm:grid-cols-2">{filteredPlayers.length ? filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} teams={teams} shouldDisplayCategory={shouldDisplayCategory} />) : <p className={`${cardClass} text-slate-600`}>Team yet to pick players.</p>}</div>
         </>}
 
-        {screen === "players" && <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.65fr)]"><AuctionPane /><div>
+        {screen === "players" && <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.65fr)]"><AuctionPane currentPlayer={currentPlayer} tournament={tournament} teams={teams} currentBidTeam={currentBidTeam} shouldDisplayCategory={shouldDisplayCategory} /><div>
           <section className="grid gap-3 rounded-2xl border border-white/30 bg-slate-950/25 p-5 text-white shadow-lg">
             <div className="flex flex-wrap items-end gap-2">{[["all", "ALL", "border-slate-300 bg-slate-100 text-slate-700"], ["sold", "SOLD", "border-green-300 bg-green-50 text-green-800"], ["unsold", "UNSOLD", "border-red-200 bg-red-50 text-red-700"], ["available", "AVL", "border-slate-300 bg-slate-100 text-slate-700"]].map(([value, label, colors]) => <button key={value} type="button" onClick={() => setFilterStatus(value)} className={`rounded-full border px-4 py-2 text-xs font-black ${filterStatus === value ? "ring-2 ring-orange-400 ring-offset-1" : ""} ${colors}`}>{label}</button>)}</div>
             <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setFilterCategory("all")} className={`rounded-full border px-4 py-2 text-xs font-black ${filterCategory === "all" ? "border-orange-400 bg-orange-400 text-slate-950" : "border-slate-300 bg-white text-slate-700"}`}>ALL CATEGORIES</button>{categories.map((category) => <button key={category} type="button" onClick={() => setFilterCategory(category)} className={`rounded-full border px-4 py-2 text-xs font-black ${filterCategory === category ? "border-orange-400 bg-orange-400 text-slate-950" : "border-slate-300 bg-white text-slate-700"}`}>{category}</button>)}</div>
           </section>
           <p className="mt-4 text-sm font-semibold text-slate-600">Showing {filteredPlayers.length} of {players.length} players</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">{filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} />)}</div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">{filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} teams={teams} shouldDisplayCategory={shouldDisplayCategory} />)}</div>
         </div></section>}
 
         {sponsors.length > 0 && <section className="mt-8 border-t border-slate-200 pt-5"><h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Tournament partners</h2><div className="mt-3 flex flex-wrap gap-3">{sponsors.map((sponsor) => <a key={sponsor.id} href={sponsor.website_url || undefined} target={sponsor.website_url ? "_blank" : undefined} rel={sponsor.website_url ? "noreferrer" : undefined} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold">{sponsor.logo_url && <AuctionImage src={sponsor.logo_url} alt="" width={36} height={36} className="h-9 w-9 object-contain" />}{sponsor.name}</a>)}</div></section>}
