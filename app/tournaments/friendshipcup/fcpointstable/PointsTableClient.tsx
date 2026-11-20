@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
@@ -7,10 +7,9 @@ type Standing = {
   team_id: string; team_name: string; position: number; matches_played: number;
   won: number; lost: number; drawn: number; tied: number; no_result: number;
   points: number; net_run_rate: number; runs_for: string | null;
-  runs_against: string | null; last_five: string | null; synced_at: string;
+  runs_against: string | null; last_five: string | null;
 };
 
-const TOURNAMENT_KEY = "friendship-cup-s7";
 const fmt = (n: number) => Number(n ?? 0).toFixed(3);
 
 export default function PointsTableClient() {
@@ -20,24 +19,21 @@ export default function PointsTableClient() {
 
   useEffect(() => {
     let cancelled = false;
-    void supabase
-      .from("fc_points_standings")
-      .select("*")
-      .eq("tournament_key", TOURNAMENT_KEY)
-      .order("position", { ascending: true })
+    void supabase.from("fc_points_standings").select("*")
+      .eq("tournament_key", "friendship-cup-s7").order("position", { ascending: true })
       .then(({ data, error: queryError }) => {
         if (cancelled) return;
         if (queryError) {
-          setError("Unable to load the cached standings. Apply the Supabase SQL migration and check the public environment variables.");
+          console.error("Could not load Friendship Cup standings:", queryError);
+          setError("Unable to load the standings. Please try again later.");
         } else {
           setRows((data ?? []) as Standing[]);
-          setError("");
         }
         setLoading(false);
       }, (queryError: unknown) => {
         console.error("Could not load Friendship Cup standings:", queryError);
         if (!cancelled) {
-          setError("Unable to load the cached standings. Check the public environment variables and try again.");
+          setError("Unable to load the standings. Please try again later.");
           setLoading(false);
         }
       });
@@ -54,8 +50,8 @@ export default function PointsTableClient() {
             <tr>{["Pos","Team","M","W","L","D","T","NR","NRR","For","Against","Pts","Last 5"].map(x => <th key={x} className="px-4 py-4">{x}</th>)}</tr>
           </thead>
           <tbody>
-            {loading ? <tr><td colSpan={13} className="px-4 py-10 text-center text-slate-500">Loading cached standings…</td></tr>
-              : rows.length === 0 ? <tr><td colSpan={13} className="px-4 py-10 text-center text-slate-500">No standings have synced yet. Please check back later.</td></tr>
+            {loading ? <tr><td colSpan={13} className="px-4 py-10 text-center text-slate-500">Loading standings...</td></tr>
+              : !error && rows.length === 0 ? <tr><td colSpan={13} className="px-4 py-10 text-center text-slate-500">No standings available yet.</td></tr>
               : rows.map(row => <tr key={row.team_id} className="border-t border-slate-200 hover:bg-white/[0.03]">
                 <td className="px-4 py-4 font-bold text-orange-600">{row.position}</td>
                 <td className="px-4 py-4 font-semibold text-slate-950">{row.team_name}</td>
@@ -72,11 +68,9 @@ export default function PointsTableClient() {
 
       {/* Mobile: cards include every standings field, with no sideways scrolling */}
       <div className="space-y-3 md:hidden">
-        {loading ? (
-          <div className="rounded-2xl border border-slate-200 px-4 py-10 text-center text-sm text-slate-500">Loading cached standings…</div>
-        ) : rows.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 px-4 py-10 text-center text-sm text-slate-500">No standings have synced yet. Please check back later.</div>
-        ) : rows.map(row => (
+        {loading ? <div className="rounded-2xl border border-slate-200 px-4 py-10 text-center text-sm text-slate-500">Loading standings...</div>
+          : !error && rows.length === 0 ? <div className="rounded-2xl border border-slate-200 px-4 py-10 text-center text-sm text-slate-500">No standings available yet.</div>
+          : rows.map(row => (
           <article key={row.team_id} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-400/10 text-sm font-extrabold text-orange-600">{row.position}</div>

@@ -12,6 +12,12 @@ This creates:
 - `fc_points_standings`: public-read cached standings
 - `fc_points_sync_runs`: private sync run log
 
+## Uploading a Friendship Cup points-table PDF
+
+Configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and the server-only `SUPABASE_SECRET_KEY` for the app. The standings table must already contain the eight Season 7 teams. Sign in at `/admin`, open **Friendship Cup**, and upload the CricHeroes points-table PDF. Compare every field against the preview, fill in any highlighted blanks, confirm the review, and select **Publish Points Table**. The public page reads the saved Supabase standings on load.
+
+PDF recognition runs in the browser and can misread values, including NRR signs and overs. A blank means a value could not be recognized consistently; all values must still be checked. Automatic CricHeroes sync, if enabled, can overwrite a PDF upload with newer synced data.
+
 ## 2. Configure Edge Function secrets
 
 Generate a long random secret (at least 32 bytes). Set the same value as `FC_SYNC_SECRET` in both places below. Do not put it in client-side `NEXT_PUBLIC_*` variables.
