@@ -7,6 +7,7 @@ const exploreLinks = [
   { href: "/", label: "Home" },
   { href: "/tournaments", label: "Tournaments" },
   { href: "/about", label: "About Mufaddal Husain Sports" },
+  { href: "/admin", label: "Admin" },
 ];
 
 const tournamentLinks = [
@@ -38,7 +39,7 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
-      <div className="relative mx-auto flex h-20 max-w-7xl items-center justify-center px-4 sm:h-24 sm:px-6 md:px-10">
+      <div className="relative mx-auto flex h-20 max-w-7xl items-center justify-center px-4 sm:h-24 sm:px-6 md:px-10 lg:justify-between xl:justify-center">
         <Link href="/" onClick={closeMenu} className="flex min-w-0 items-center gap-2 sm:gap-3">
           <img src="/mhsports-logo.png" alt="Mufaddal Husain Sports" className="h-16 w-auto max-w-[68vw] object-contain sm:h-20" />
           <div className="hidden text-left sm:block">
@@ -47,7 +48,7 @@ export default function Navbar() {
           </div>
         </Link>
 
-        <nav className="absolute right-4 hidden items-center gap-8 md:right-10 md:flex">
+        <nav className="hidden items-center gap-8 lg:flex xl:absolute xl:right-10">
           {exploreLinks.map((item) => (
             <Link key={item.href} href={item.href} className="font-semibold text-slate-700 transition hover:text-orange-500">
               {item.label === "About Mufaddal Husain Sports" ? "About" : item.label}
@@ -60,14 +61,14 @@ export default function Navbar() {
           onClick={() => setOpen(true)}
           aria-label="Open navigation menu"
           aria-expanded={open}
-          className="absolute right-4 flex h-11 w-11 items-center justify-center rounded-xl border border-blue-900 bg-blue-950 text-2xl text-white shadow-sm transition hover:bg-blue-900 md:hidden"
+          className="absolute right-4 flex h-11 w-11 items-center justify-center rounded-xl border border-blue-900 bg-blue-950 text-2xl text-white shadow-sm transition hover:bg-blue-900 lg:hidden"
         >
           <span aria-hidden="true">☰</span>
         </button>
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/45 md:hidden" onClick={closeMenu}>
+        <div className="fixed inset-0 z-[100] bg-slate-950/45 lg:hidden" onClick={closeMenu}>
           <section
             role="dialog"
             aria-modal="true"

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { timingSafeEqual } from "node:crypto";
 
 const COOKIE_NAME = "mh_admin_session";
+export type AdminRole = "super" | "viewer";
 
 function getSecretKey() {
   const secret = process.env.ADMIN_SESSION_SECRET;
@@ -24,9 +25,25 @@ export function verifyAdminPin(pin: string) {
   return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
-export async function createAdminSession() {
+export function verifyViewerPin(pin: string) {
+  const expectedPin = process.env.ADMIN_VIEWER_PIN;
+  const superPin = process.env.ADMIN_PIN;
+  if (!expectedPin || !superPin) {
+    throw new Error("Admin PINs are not configured.");
+  }
+  const viewer = Buffer.from(expectedPin);
+  const superAdmin = Buffer.from(superPin);
+  if (viewer.length === superAdmin.length && timingSafeEqual(viewer, superAdmin)) {
+    throw new Error("The view-only PIN must differ from the super admin PIN.");
+  }
+  const provided = Buffer.from(pin);
+  return provided.length === viewer.length && timingSafeEqual(provided, viewer);
+}
+
+export async function createAdminSession(role: AdminRole = "super") {
   const token = await new SignJWT({
     admin: true,
+    role,
   })
     .setProtectedHeader({
       alg: "HS256",
@@ -46,12 +63,12 @@ export async function createAdminSession() {
   });
 }
 
-export async function isAdminAuthenticated() {
+export async function getAdminRole(): Promise<AdminRole | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
 
   if (!token) {
-    return false;
+    return null;
   }
 
   try {
@@ -60,10 +77,17 @@ export async function isAdminAuthenticated() {
       getSecretKey()
     );
 
-    return payload.admin === true;
+    if (payload.admin !== true) return null;
+    if (payload.role === undefined || payload.role === "super") return "super";
+    if (payload.role === "viewer") return "viewer";
+    return null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function isAdminAuthenticated() {
+  return (await getAdminRole()) === "super";
 }
 
 export async function destroyAdminSession() {

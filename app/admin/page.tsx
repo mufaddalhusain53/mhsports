@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isAdminAuthenticated } from "../../lib/admin/auth";
+import { getAdminRole } from "../../lib/admin/auth";
 import AdminLogin from "./admin-login";
 import AdminLogoutButton from "./admin-logout-button";
 
@@ -29,6 +29,11 @@ const adminPages = [
         description: "Open or close registration and manage player entries.",
         href: "/admin/quadclash100/player-registration",
       },
+      {
+        title: "Jersey Form Management",
+        description: "Open or close the jersey form and manage jersey requests.",
+        href: "/admin/quadclash100/jersey",
+      },
     ],
   },
   {
@@ -54,9 +59,19 @@ const adminPages = [
 ];
 
 export default async function AdminPage() {
-  if (!(await isAdminAuthenticated())) {
+  const role = await getAdminRole();
+  if (!role) {
     return <AdminLogin />;
   }
+  const allowedViewerSections = new Set([
+    "/admin/quadclash100/player-registration",
+    "/admin/quadclash100/jersey",
+    "/admin/mohalla/survey",
+  ]);
+  const visiblePages = adminPages.map((page) => ({
+    ...page,
+    sections: role === "super" ? page.sections : page.sections.filter((section) => allowedViewerSections.has(section.href)),
+  })).filter((page) => page.sections.length > 0);
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10">
@@ -70,14 +85,14 @@ export default async function AdminPage() {
               Admin Dashboard
             </h1>
             <p className="mt-2 text-slate-600">
-              Choose a tournament and the admin section you want to manage.
+              {role === "viewer" ? "View-only access to registration lists." : "Choose a tournament and the admin section you want to manage."}
             </p>
           </div>
           <AdminLogoutButton />
         </header>
 
         <div className="mt-8 grid gap-6">
-          {adminPages.map((page) => (
+          {visiblePages.map((page) => (
             <section
               key={page.tournament}
               className="rounded-2xl bg-white p-6 shadow-sm"

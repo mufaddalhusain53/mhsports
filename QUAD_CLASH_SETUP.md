@@ -7,6 +7,16 @@
 4. Run `supabase/migrations/202610190001_qc100_player_registration.sql` in the Supabase SQL Editor to create the registrations/settings tables and the public player-photo bucket. Registration is disabled by default. Duplicate registrations are blocked for the same ITS ID + mobile number combination. If the migration was already applied before the admin permission grants, 4 MB photo limit, composite duplicate-registration index, or auction availability field were added, run it again to apply them.
 5. From `/admin`, open QuadClash 100 → Player Registration Management to enable or disable the form, view registered players, mark individual players inactive/unavailable for auction, and open their public photo links. The existing `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SECRET_KEY` server configuration is used; never expose the service key to the browser.
 
+## View-only admin
+
+1. Apply `supabase/migrations/202611200007_admin_viewer_login_limit.sql` in the same Supabase project. This migration is required before view-only login works.
+2. Set `ADMIN_VIEWER_PIN` as a server-only environment variable locally and in Vercel. It must differ from the existing `ADMIN_PIN`. Do not commit PINs or add them to `NEXT_PUBLIC_*` variables. Deploy the app after configuring the environment.
+3. Enter either PIN on the admin login page. The view-only PIN opens the restricted dashboard; the existing super admin PIN keeps full access.
+
+The view-only admin can view and export QuadClash player registrations, jersey requests and Mohalla survey responses. They cannot change form status, player status, payments, records, points, statistics or auctions. Anyone who can view personal information can also copy or save it.
+
+When the view-only PIN is configured, login attempts that do not match the super admin PIN are limited to five per shared 15-minute window, including successful view-only logins. The limit is shared by all users and resets after the window. If the limiter is unavailable, view-only login is disabled until the database issue is resolved. The correct super admin PIN remains usable during a lockout; this does not add a rate limit to the existing super admin login. A four-digit PIN is weak even with throttling: use a longer unique PIN for both roles and share it securely. Changing a PIN does not revoke existing sessions; rotate `ADMIN_SESSION_SECRET` to invalidate all sessions immediately.
+
 ## Admin pages
 - `/admin` — admin section navigation
 - `/admin/friendship-cup/leaderboard` — points table refresh and season leaderboard uploads

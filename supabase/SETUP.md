@@ -91,3 +91,21 @@ Before running the schedule SQL, enable the `pg_cron`, `pg_net`, and Vault exten
 5. The table stores raw CSV text in Supabase Postgres, not Storage, so it does not consume Supabase Storage quota. Public users can read the stats; writes are restricted to the server-side admin API.
 
 The Friendship Cup Stats page also displays the supplied Hall of Fame: Seasons 1–6 champions and runners-up, with Season 7 marked as in progress.
+
+## QuadClash player registrations
+
+Admins can permanently delete a player registration and its photo from the registration list after confirmation. If the photo is deleted but the registration cannot be removed, retry the deletion.
+
+## QuadClash jersey requests
+
+1. Apply jersey migrations `202611200001` through `202611200006` in order to the same Supabase project as the website. Apply only migrations that have not already been run.
+2. Configure `NEXT_PUBLIC_SUPABASE_URL` and server-only `SUPABASE_SECRET_KEY`, deploy the app, and enable the initially closed jersey form in **Admin → QuadClash 100 → Jersey Form Management**.
+3. Test a free request and a paid request. Paid players scan the displayed QR, enter the displayed amount, and send their payment screenshot and request reference through the WhatsApp link. In the admin page, match the reference and verify actual receipt and amount before selecting **Mark paid**. A screenshot alone is not proof of receipt.
+
+The amount is calculated on the server: 1 Half ₹0, 1 Full ₹150, 1 Full and 1 Half ₹650, and 2 Full ₹800. The QR does not automatically set the amount or verify payment. Paid requests stay pending until an administrator confirms them. Players should save the page link to check their request and avoid submitting a duplicate. Closing the form prevents new submissions but existing statuses can still be checked.
+
+New jersey requests do not collect mobile numbers; existing numbers remain available in the admin export. The team chart counts all submissions, including pending payments. Use **Refresh list** to reload requests. Admins can permanently delete individual requests after confirmation. Deleting a request does not cancel or refund any payment.
+
+No new Cashfree payments or links are created. Historical payment statuses are preserved; contact players about older pending Cashfree requests before asking them to pay again. Keep the existing Cashfree webhook and server-side credentials configured only while reconciling any outstanding historical orders or links.
+
+If an older copy of migration `202611200003` failed because the payment-status constraint name did not exist, run the complete updated migration before continuing with `202611200004` and `202611200005`. The updated migration identifies the existing check by its columns and allowed statuses and stops if it cannot identify exactly one.

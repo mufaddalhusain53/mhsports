@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import QuadClashRegistrationAdmin from "./quadclash-registration-admin";
+import QuadClashJerseyAdmin from "./quadclash-jersey-admin";
 import FcPointsPdfUpload from "./fc-points-pdf-upload";
 
 type SurveyResponse = {
@@ -24,12 +25,14 @@ type SurveyResponse = {
 type Props = {
   responses: SurveyResponse[];
   view: AdminView;
+  readOnly: boolean;
 };
 
 export type AdminView =
   | "friendshipcup-leaderboard"
   | "quadclash100-leaderboard"
   | "quadclash100-registration"
+  | "quadclash100-jersey"
   | "mohalla-survey";
 
 const VIEW_TITLES: Record<AdminView, { tournament: string; section: string }> = {
@@ -45,13 +48,17 @@ const VIEW_TITLES: Record<AdminView, { tournament: string; section: string }> = 
     tournament: "QuadClash 100",
     section: "Player Registration Management",
   },
+  "quadclash100-jersey": {
+    tournament: "QuadClash 100",
+    section: "Jersey Form Management",
+  },
   "mohalla-survey": {
     tournament: "Mohalla Tournament",
     section: "Player Survey Management",
   },
 };
 
-export default function AdminDashboard({ responses, view }: Props) {
+export default function AdminDashboard({ responses, view, readOnly }: Props) {
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("All");
   const [jamiat, setJamiat] = useState("All");
@@ -247,7 +254,8 @@ export default function AdminDashboard({ responses, view }: Props) {
         )}
 
         {(view === "quadclash100-leaderboard" ||
-          view === "quadclash100-registration") && (
+          view === "quadclash100-registration" ||
+          view === "quadclash100-jersey") && (
           <section className="mt-6 space-y-5">
             <div className="rounded-2xl bg-white p-6 shadow-sm">
               <p className="text-sm font-bold uppercase tracking-wider text-orange-500">QuadClash 100</p>
@@ -261,7 +269,8 @@ export default function AdminDashboard({ responses, view }: Props) {
                 <div className="rounded-2xl bg-white p-6 shadow-sm"><h3 className="text-lg font-black text-slate-900">Season Stats CSV Upload</h3><p className="mt-2 text-sm leading-6 text-slate-500">Upload Batting, Bowling, Fielding or MVP leaderboard CSV files. Bulk uploads can be added later; this form supports individual category uploads.</p><form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={async(event)=>{event.preventDefault();const season=(document.getElementById("qc-season") as HTMLSelectElement)?.value??"1";const category=(document.getElementById("qc-category") as HTMLSelectElement)?.value??"batting";const input=document.getElementById("qc-stats-file") as HTMLInputElement|null;const file=input?.files?.[0];const status=document.getElementById("qc-upload-status");if(!file){if(status)status.textContent="Choose a CSV file first.";return;}if(status)status.textContent="Uploading…";try{const body=new FormData();body.set("season",season);body.set("category",category);body.set("file",file);const response=await fetch("/api/quadclash100-stats",{method:"POST",body});const result=await response.json();if(!response.ok)throw new Error(result.error??"Upload failed.");if(status)status.textContent=`Uploaded ${result.fileName} for Season ${result.season} · ${result.category}.`;if(input)input.value="";}catch(error){if(status)status.textContent=error instanceof Error?error.message:"Upload failed.";}}}><label className="text-sm font-bold text-slate-700">Season<select id="qc-season" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3"><option value="1">Season 1</option><option value="2">Season 2</option></select></label><label className="text-sm font-bold text-slate-700">Leaderboard type<select id="qc-category" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3"><option value="batting">Batting</option><option value="bowling">Bowling</option><option value="fielding">Fielding</option><option value="mvp">MVP</option></select></label><label className="text-sm font-bold text-slate-700 sm:col-span-2">Raw CSV file<input id="qc-stats-file" type="file" accept=".csv,text/csv" className="mt-2 block w-full rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label><div className="sm:col-span-2"><button type="submit" className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white">Upload Season CSV</button><p id="qc-upload-status" role="status" className="mt-3 break-words text-sm text-slate-600" /></div></form></div>
               </>
             )}
-            {view === "quadclash100-registration" && <QuadClashRegistrationAdmin />}
+            {view === "quadclash100-registration" && <QuadClashRegistrationAdmin readOnly={readOnly} />}
+            {view === "quadclash100-jersey" && <QuadClashJerseyAdmin readOnly={readOnly} />}
           </section>
         )}
 

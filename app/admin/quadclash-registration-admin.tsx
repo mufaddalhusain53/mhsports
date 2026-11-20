@@ -61,13 +61,14 @@ function downloadPlayerExcel(players: RegisteredPlayer[]) {
   );
 }
 
-export default function QuadClashRegistrationAdmin() {
+export default function QuadClashRegistrationAdmin({ readOnly }: { readOnly: boolean }) {
   const [enabled, setEnabled] = useState(false);
   const [players, setPlayers] = useState<RegisteredPlayer[]>([]);
   const [nameSearch, setNameSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [updatingPlayerId, setUpdatingPlayerId] = useState<number | null>(null);
+  const [deletingPlayerId, setDeletingPlayerId] = useState<number | null>(null);
   const [status, setStatus] = useState("");
   const filteredPlayers = players.filter((player) =>
     `${player.first_name} ${player.last_name}`
@@ -201,6 +202,36 @@ export default function QuadClashRegistrationAdmin() {
     }
   }
 
+  async function deletePlayer(player: RegisteredPlayer) {
+    if (!window.confirm(
+      `Permanently delete the registration and photo for ${player.first_name} ${player.last_name}? This cannot be undone.`
+    )) return;
+
+    setDeletingPlayerId(player.id);
+    setStatus("");
+    try {
+      const response = await fetch("/api/admin/quadclash100-registration", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: player.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error ?? "Unable to delete registration.");
+      }
+      setPlayers((currentPlayers) =>
+        currentPlayers.filter((currentPlayer) => currentPlayer.id !== player.id)
+      );
+      setStatus(`${player.first_name} ${player.last_name}'s registration and photo were deleted.`);
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message : "Unable to delete registration."
+      );
+    } finally {
+      setDeletingPlayerId(null);
+    }
+  }
+
   return (
     <section className="space-y-5 rounded-2xl bg-white p-6 shadow-sm">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -212,11 +243,12 @@ export default function QuadClashRegistrationAdmin() {
             Player Registration
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Keep the form private until you are ready. Player photos are stored
-            with shareable public links.
+            {readOnly
+              ? "View registered players and their details."
+              : "Keep the form private until you are ready. Player photos are stored with shareable public links."}
           </p>
         </div>
-        <button
+        {!readOnly && <button
           type="button"
           onClick={() => void updateRegistrationState(!enabled)}
           disabled={busy || loading}
@@ -232,7 +264,7 @@ export default function QuadClashRegistrationAdmin() {
             : enabled
               ? "Disable Registration"
               : "Enable Registration"}
-        </button>
+        </button>}
       </div>
 
       <div
@@ -275,7 +307,7 @@ export default function QuadClashRegistrationAdmin() {
               setLoading(true);
               void loadRegistrations();
             }}
-            disabled={loading}
+            disabled={loading || updatingPlayerId !== null || deletingPlayerId !== null}
             className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             {loading ? "Loading…" : "Refresh list"}
@@ -335,6 +367,7 @@ export default function QuadClashRegistrationAdmin() {
                   "Auction Status",
                   "Photo",
                   "Registered",
+                  ...(!readOnly ? ["Action"] : []),
                 ].map((heading) => (
                   <th key={heading} className="px-4 py-3 font-bold">
                     {heading}
@@ -346,7 +379,7 @@ export default function QuadClashRegistrationAdmin() {
               {filteredPlayers.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={12}
+                    colSpan={readOnly ? 12 : 13}
                     className="px-4 py-10 text-center text-slate-500"
                   >
                     {players.length === 0
@@ -392,10 +425,10 @@ export default function QuadClashRegistrationAdmin() {
                           ? "Available"
                           : "Inactive"}
                       </div>
-                      <button
+                      {!readOnly && <button
                         type="button"
                         onClick={() => void updateAuctionAvailability(player)}
-                        disabled={updatingPlayerId === player.id}
+                        disabled={updatingPlayerId !== null || deletingPlayerId !== null}
                         className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
                           player.auction_available
                             ? "bg-slate-600 hover:bg-slate-700"
@@ -407,7 +440,7 @@ export default function QuadClashRegistrationAdmin() {
                           : player.auction_available
                             ? "Mark Inactive"
                             : "Mark Available"}
-                      </button>
+                      </button>}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col items-start gap-2">
@@ -430,6 +463,17 @@ export default function QuadClashRegistrationAdmin() {
                         minute: "2-digit",
                       })}
                     </td>
+                    {!readOnly && <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => void deletePlayer(player)}
+                        disabled={updatingPlayerId !== null || deletingPlayerId !== null}
+                        aria-label={`Delete registration for ${player.first_name} ${player.last_name}`}
+                        className="whitespace-nowrap rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {deletingPlayerId === player.id ? "Deleting…" : "Delete"}
+                      </button>
+                    </td>}
                   </tr>
                 ))
               )}

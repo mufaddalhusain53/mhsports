@@ -6,6 +6,7 @@ const items = [
  {href:"/tournaments/quadclash100/teams", icon:"👥", title:"QuadClash 100 Teams", desc:"Choose a season and explore team squads and player details."},
  {href:"/tournaments/quadclash100/season-2", icon:"📅", title:"Season 2 Dates", desc:"Revised dates: 20, 21 and 22 March 2026."},
  {href:"/tournaments/quadclash100/registration", icon:"📝", title:"Season 2 Player Registration", desc:"Registration announcement and updates."},
+ {href:"/tournaments/quadclash100/jerseyform", icon:"👕", title:"QC 100 Season 2 Jersey", desc:"Submit your jersey size and sleeve preferences."},
  {href:"/tournaments/quadclash100/sponsors", icon:"🤝", title:"QuadClash 100 Sponsors", desc:"Tournament sponsors and franchise sponsors."},
  {href:"/tournaments/quadclash100/hall-of-fame", icon:"👑", title:"QuadClash 100 Hall of Fame", desc:"Champions, runners-up and tournament legacy."},
 ];

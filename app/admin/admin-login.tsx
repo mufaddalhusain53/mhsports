@@ -13,23 +13,28 @@ export default function AdminLogin() {
     setLoading(true);
     setError("");
 
-    const response = await fetch("/api/admin/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ pin }),
-    });
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ pin }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      setError(data.message || "Incorrect PIN.");
+      if (!response.ok) {
+        setError(data.message || "Incorrect PIN.");
+        return;
+      }
+
+      window.location.href = "/admin";
+    } catch {
+      setError("Unable to reach the login service. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    window.location.href = "/admin";
   }
 
   return (
