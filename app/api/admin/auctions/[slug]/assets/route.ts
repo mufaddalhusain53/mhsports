@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 type Context = { params: Promise<{ slug: string }> };
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_PLAYER_PHOTO_BYTES = 10 * 1024 * 1024;
 const MIME_EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -23,11 +24,13 @@ export async function POST(request: Request, { params }: Context) {
   }
   const file = formData.get("file");
   const assetType = formData.get("assetType");
-  if (!(file instanceof File) || !["team", "sponsor", "background", "tournament", "organizer"].includes(String(assetType))) {
-    return NextResponse.json({ error: "Choose a team, sponsor, or background image to upload." }, { status: 400 });
+  if (!(file instanceof File) || !["team", "sponsor", "player", "background", "tournament", "organizer"].includes(String(assetType))) {
+    return NextResponse.json({ error: "Choose a supported auction image type to upload." }, { status: 400 });
   }
-  if (!MIME_EXTENSIONS[file.type] || file.size < 1 || file.size > MAX_FILE_BYTES) {
-    return NextResponse.json({ error: "Use a JPG, PNG, or WebP image up to 5 MB." }, { status: 400 });
+  const maxFileBytes = assetType === "player" ? MAX_PLAYER_PHOTO_BYTES : MAX_FILE_BYTES;
+  if (!MIME_EXTENSIONS[file.type] || file.size < 1 || file.size > maxFileBytes) {
+    const maxFileSize = assetType === "player" ? "10" : "5";
+    return NextResponse.json({ error: `Use a JPG, PNG, or WebP image up to ${maxFileSize} MB.` }, { status: 400 });
   }
   const { data: tournament, error: lookupError } = await supabaseAdmin
     .from("auction_tournaments").select("id").eq("slug", slug).maybeSingle();

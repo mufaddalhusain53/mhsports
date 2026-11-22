@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
+import { sortSponsors } from "@/lib/auction/sponsors";
 import { supabase } from "@/lib/supabase/client";
 
 type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
@@ -14,7 +15,7 @@ type Player = {
   batting_style: string | null; bowling_style: string | null; previous_team: string | null; photo_url: string | null;
   status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null; rtm_team_id: string | null;
 };
-type Sponsor = { id: string; name: string; logo_url: string | null; website_url: string | null };
+type Sponsor = { id: string; name: string; sponsor_title: string | null; logo_url: string | null; website_url: string | null; display_order: number };
 type AuctionCategory = { id: string; name: string; base_price: number; min_players: number; max_players: number };
 type IncrementRule = { from: number; increment: number };
 type Tournament = {
@@ -77,12 +78,14 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [teamName, setTeamName] = useState("");
   const [teamLogo, setTeamLogo] = useState("");
   const [teamRTM, setTeamRTM] = useState("0");
+  const [tournamentName, setTournamentName] = useState("");
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [tournamentLogoUrl, setTournamentLogoUrl] = useState("");
   const [organizerLogoUrls, setOrganizerLogoUrls] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
   const [setupTab, setSetupTab] = useState<SetupTab>("overview");
   const [sponsorName, setSponsorName] = useState("");
+  const [sponsorTitle, setSponsorTitle] = useState("");
   const [sponsorLogo, setSponsorLogo] = useState("");
   const [sponsorWebsite, setSponsorWebsite] = useState("");
   const [incrementRules, setIncrementRules] = useState<IncrementRule[]>([]);
@@ -117,6 +120,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Unable to load auction.");
     setData(result);
+    setTournamentName(result.tournament.name);
     setBackgroundUrl(result.tournament.background_url ?? "");
     setTournamentLogoUrl(result.tournament.tournament_logo_url ?? "");
     setOrganizerLogoUrls((result.tournament.organizer_logo_urls ?? []).join("\n"));
@@ -132,6 +136,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
         if (!response.ok) throw new Error(result.error || "Unable to load auction.");
         if (active) {
           setData(result);
+          setTournamentName(result.tournament.name);
           setBackgroundUrl(result.tournament.background_url ?? "");
           setTournamentLogoUrl(result.tournament.tournament_logo_url ?? "");
           setOrganizerLogoUrls((result.tournament.organizer_logo_urls ?? []).join("\n"));
@@ -175,7 +180,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           if (!previous) return previous;
           if (change.eventType === "DELETE") return { ...previous, sponsors: previous.sponsors.filter((sponsor) => sponsor.id !== change.old.id) };
           const exists = previous.sponsors.some((sponsor) => sponsor.id === row.id);
-          return { ...previous, sponsors: exists ? previous.sponsors.map((sponsor) => sponsor.id === row.id ? { ...sponsor, ...row } : sponsor) : [...previous.sponsors, row as Sponsor] };
+          return { ...previous, sponsors: sortSponsors(exists ? previous.sponsors.map((sponsor) => sponsor.id === row.id ? { ...sponsor, ...row } : sponsor) : [...previous.sponsors, row as Sponsor]) };
         });
       })
       .subscribe();
@@ -412,6 +417,11 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     });
   }
 
+  async function saveTournamentName(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await action({ action: "tournament_name", name: tournamentName });
+  }
+
   async function saveCategory(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const saved = await action({
@@ -448,7 +458,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     }
   }
 
-  async function uploadAsset(file: File, type: "team" | "sponsor" | "background" | "tournament" | "organizer") {
+  async function uploadAsset(file: File, type: "team" | "sponsor" | "player" | "background" | "tournament" | "organizer") {
     const form = new FormData();
     form.set("file", file);
     form.set("assetType", type);
@@ -521,11 +531,11 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     try {
       const response = await fetch(`/api/admin/auctions/${encodeURIComponent(slug)}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add_sponsor", name: sponsorName, logoUrl: sponsorLogo, websiteUrl: sponsorWebsite }),
+        body: JSON.stringify({ action: "add_sponsor", name: sponsorName, sponsorTitle, logoUrl: sponsorLogo, websiteUrl: sponsorWebsite }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Unable to add sponsor.");
-      setSponsorName(""); setSponsorLogo(""); setSponsorWebsite(""); await load(); setMessage("Sponsor added.");
+      setSponsorName(""); setSponsorTitle(""); setSponsorLogo(""); setSponsorWebsite(""); await load(); setMessage("Sponsor added.");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to add sponsor."); }
     finally { setBusy(false); }
   }
@@ -533,11 +543,20 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   async function saveSponsor(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingSponsor) return;
-    const saved = await action({ action: "edit_sponsor", sponsorId: editingSponsor.id, name: editingSponsor.name, logoUrl: editingSponsor.logo_url, websiteUrl: editingSponsor.website_url });
+    const saved = await action({ action: "edit_sponsor", sponsorId: editingSponsor.id, name: editingSponsor.name, sponsorTitle: editingSponsor.sponsor_title, logoUrl: editingSponsor.logo_url, websiteUrl: editingSponsor.website_url });
     if (saved) {
       setEditingSponsor(null);
       setMessage("Sponsor updated.");
     }
+  }
+
+  async function moveSponsor(index: number, direction: -1 | 1) {
+    if (!data) return;
+    const target = index + direction;
+    if (target < 0 || target >= data.sponsors.length) return;
+    const sponsorIds = data.sponsors.map((sponsor) => sponsor.id);
+    [sponsorIds[index], sponsorIds[target]] = [sponsorIds[target], sponsorIds[index]];
+    if (await action({ action: "reorder_sponsors", sponsorIds })) setMessage("Sponsor order updated.");
   }
 
   async function confirmDeleteSponsor() {
@@ -579,6 +598,23 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
       setEditingSponsor((sponsor) => sponsor ? { ...sponsor, logo_url: logoUrl } : sponsor);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Sponsor logo upload failed.");
+    } finally {
+      setBusy(false);
+      event.target.value = "";
+    }
+  }
+
+  async function uploadEditedPlayerPhoto(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !editingPlayer) return;
+    setBusy(true);
+    setError("");
+    try {
+      const photoUrl = await uploadAsset(file, "player");
+      updateEditingPlayer("photo_url", photoUrl);
+      setMessage("New photo uploaded. Save player to apply it.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Player photo upload failed.");
     } finally {
       setBusy(false);
       event.target.value = "";
@@ -838,6 +874,14 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           ))}
         </section>
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-black text-slate-900">Tournament name</h2>
+          <p className="mt-1 text-sm text-slate-600">Change the name shown on the viewer and projector. The public URL stays the same.</p>
+          <form onSubmit={saveTournamentName} className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="min-w-60 flex-1 text-xs font-bold text-slate-600">Name<input value={tournamentName} onChange={(event) => setTournamentName(event.target.value)} className={inputClass} maxLength={120} required disabled={busy} /></label>
+            <button type="submit" className={buttonClass} disabled={busy}>Save name</button>
+          </form>
+        </section>
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-black text-slate-900">Auction date</h2>
           <p className="mt-1 text-sm text-slate-600">Set the date viewers will see before the auction begins.</p>
           <div className="mt-4 flex flex-wrap items-end gap-3">
@@ -933,17 +977,19 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <p className="mt-1 text-sm text-slate-600">Download the template, fill in one player per row, then upload the completed workbook. Name and Category are required; Player Number is optional and defaults to the row number.</p>
             <div className="mt-4 flex flex-wrap gap-3">
               <button type="button" className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50" onClick={downloadPlayerTemplate}>Download Excel template</button>
-              <label className={`inline-flex cursor-pointer items-center ${buttonClass}`}>{busy ? "Working…" : "Upload completed Excel"}<input type="file" accept=".xlsx,.xls" disabled={busy} className="sr-only" onChange={(event) => void importPlayers(event)} /></label>
+              <label className={`inline-flex cursor-pointer items-center ${buttonClass} ${busy || data.tournament.status !== "setup" ? "cursor-not-allowed opacity-50" : ""}`}>{busy ? "Working…" : "Upload player list (Excel)"}<input type="file" accept=".xlsx,.xls" disabled={busy || data.tournament.status !== "setup"} className="sr-only" onChange={(event) => void importPlayers(event)} /></label>
             </div>
-            <p className="mt-3 text-xs text-slate-500">Import new players at any time. Player records are shown publicly without contact or identity details.</p>
+            <p className="mt-3 text-xs text-slate-500">{data.tournament.status === "setup" ? "Player imports are available before the auction starts; matching player numbers are updated." : "Player imports are locked after the auction starts."} Player records are shown publicly without contact or identity details.</p>
             {error && <p className="mt-2 text-sm font-semibold text-red-700">Upload error: {error}</p>}
             <p className="mt-2 text-sm font-semibold text-slate-700">{availablePlayers.length} available · {soldPlayers} sold · {unsoldPlayers} unsold</p>
           </section>}
 
           {setupTab === "sponsors" && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-black text-slate-900">Sponsors</h2>
+            <p className="mt-1 text-sm text-slate-600">Use the arrows to change the order shown on the viewer and projector.</p>
             <form onSubmit={addSponsor} className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-xs font-bold text-slate-600">Sponsor name<input value={sponsorName} onChange={(event) => setSponsorName(event.target.value)} className={inputClass} maxLength={120} required /></label>
+              <label className="text-xs font-bold text-slate-600">Sponsor title (optional)<input value={sponsorTitle} onChange={(event) => setSponsorTitle(event.target.value)} className={inputClass} maxLength={120} placeholder="Title Partner, Beverage Partner…" /></label>
               <label className="text-xs font-bold text-slate-600">Logo image URL or upload<input value={sponsorLogo} onChange={(event) => setSponsorLogo(event.target.value)} className={inputClass} placeholder="https://…" /></label>
               <label className="text-xs font-bold text-slate-600">Website URL<input value={sponsorWebsite} onChange={(event) => setSponsorWebsite(event.target.value)} className={inputClass} placeholder="https://…" /></label>
               <div className="flex items-end gap-3">
@@ -951,7 +997,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
                 <button disabled={busy} className={buttonClass}>Add sponsor</button>
               </div>
             </form>
-            <div className="mt-4 grid gap-2">{data.sponsors.map((sponsor) => <div key={sponsor.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold"><div className="flex min-w-0 items-center gap-2">{sponsor.logo_url && <AuctionImage src={sponsor.logo_url} alt="" width={32} height={32} className="h-8 w-8 object-contain" />}<span>{sponsor.name}</span></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => setEditingSponsor({ ...sponsor })} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit</button><button type="button" disabled={busy} onClick={() => setPendingDeleteSponsor(sponsor)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button></div></div>)}</div>
+            <div className="mt-4 grid gap-2">{data.sponsors.map((sponsor, index) => <div key={sponsor.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold"><div className="flex min-w-0 items-center gap-2">{sponsor.logo_url && <AuctionImage src={sponsor.logo_url} alt="" width={32} height={32} className="h-8 w-8 object-contain" />}<span>{sponsor.sponsor_title ? `${sponsor.sponsor_title} · ` : ""}{sponsor.name}</span></div><div className="flex gap-2"><button type="button" aria-label={`Move ${sponsor.name} up`} disabled={busy || index === 0} onClick={() => void moveSponsor(index, -1)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">↑</button><button type="button" aria-label={`Move ${sponsor.name} down`} disabled={busy || index === data.sponsors.length - 1} onClick={() => void moveSponsor(index, 1)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">↓</button><button type="button" disabled={busy} onClick={() => setEditingSponsor({ ...sponsor })} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit</button><button type="button" disabled={busy} onClick={() => setPendingDeleteSponsor(sponsor)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button></div></div>)}</div>
           </section>}
         </div>
         {setupTab === "players" && <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -1054,7 +1100,10 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
         </section>}
 
         {view === "run" && <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-5"><h2 className="font-black text-slate-900">Player pool status</h2></div>
+          <div className="flex flex-col justify-between gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center">
+            <div><h2 className="font-black text-slate-900">Player pool status</h2>{data.tournament.status !== "setup" && <p className="mt-1 text-xs text-slate-500">Player imports are available before the auction starts.</p>}</div>
+            <label className={`inline-flex cursor-pointer items-center ${buttonClass} ${busy || data.tournament.status !== "setup" ? "cursor-not-allowed opacity-50" : ""}`}>{busy ? "Working…" : "Upload player list (Excel)"}<input type="file" accept=".xlsx,.xls" disabled={busy || data.tournament.status !== "setup"} className="sr-only" onChange={(event) => void importPlayers(event)} /></label>
+          </div>
           <div className="border-b border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
@@ -1094,6 +1143,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           <form onSubmit={saveSponsor} className="my-auto w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-wide text-orange-700">Sponsor settings</p><h2 className="mt-1 text-xl font-black text-slate-950">Update sponsor</h2></div><button type="button" onClick={() => setEditingSponsor(null)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">Close</button></div>
             <label className="mt-5 block text-xs font-bold text-slate-600">Sponsor name<input value={editingSponsor.name} onChange={(event) => setEditingSponsor({ ...editingSponsor, name: event.target.value })} className={inputClass} maxLength={120} required /></label>
+            <label className="mt-3 block text-xs font-bold text-slate-600">Sponsor title (optional)<input value={editingSponsor.sponsor_title ?? ""} onChange={(event) => setEditingSponsor({ ...editingSponsor, sponsor_title: event.target.value || null })} className={inputClass} maxLength={120} placeholder="Title Partner, Beverage Partner…" /></label>
             <label className="mt-3 block text-xs font-bold text-slate-600">Logo image URL<input value={editingSponsor.logo_url ?? ""} onChange={(event) => setEditingSponsor({ ...editingSponsor, logo_url: event.target.value || null })} className={inputClass} placeholder="https://…" /></label>
             <label className="mt-3 block text-xs font-bold text-slate-600">Website URL<input value={editingSponsor.website_url ?? ""} onChange={(event) => setEditingSponsor({ ...editingSponsor, website_url: event.target.value || null })} className={inputClass} placeholder="https://…" /></label>
             <div className="mt-3 flex items-center gap-3"><label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Upload logo<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} className="sr-only" onChange={(event) => void uploadEditedSponsorLogo(event)} /></label>{editingSponsor.logo_url && <AuctionImage src={editingSponsor.logo_url} alt="Sponsor logo preview" width={32} height={32} className="h-8 w-8 object-contain" />}</div>
@@ -1193,7 +1243,13 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
               <label className="text-xs font-bold text-slate-600">Bowling style<input value={editingPlayer.bowling_style ?? ""} onChange={(event) => updateEditingPlayer("bowling_style", event.target.value || null)} className={inputClass} maxLength={100} /></label>
               <label className="text-xs font-bold text-slate-600">Previous team<input value={editingPlayer.previous_team ?? ""} onChange={(event) => updateEditingPlayer("previous_team", event.target.value || null)} className={inputClass} maxLength={120} /></label>
               <label className="text-xs font-bold text-slate-600">Player photo URL<input value={editingPlayer.photo_url ?? ""} onChange={(event) => updateEditingPlayer("photo_url", event.target.value || null)} className={inputClass} /></label>
+              <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+                {editingPlayer.photo_url && <AuctionImage src={editingPlayer.photo_url} alt={`${editingPlayer.full_name} photo preview`} width={64} height={64} className="h-16 w-16 rounded-lg border border-slate-200 object-cover" />}
+                <label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Upload replacement photo<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} className="sr-only" onChange={(event) => void uploadEditedPlayerPhoto(event)} /></label>
+                <p className="text-xs text-slate-500">JPG, PNG, or WebP up to 10 MB. The uploaded photo replaces the current one when you save.</p>
+              </div>
             </div>
+            {error && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{error}</p>}
             <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => setEditingPlayer(null)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold">Cancel</button><button disabled={busy} className={buttonClass}>{busy ? "Saving…" : "Save player"}</button></div>
           </form>
         </div>}

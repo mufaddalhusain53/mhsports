@@ -16,9 +16,9 @@ export async function GET(_request: Request, { params }: Context) {
   if (!tournament) return NextResponse.json({ error: "Auction tournament not found." }, { status: 404 });
 
   const [teamsResult, playersResult, sponsorsResult] = await Promise.all([
-    supabaseAdmin.from("auction_teams").select("id,name,slug,logo_url,points_remaining").eq("tournament_id", tournament.id).order("name"),
-    supabaseAdmin.from("auction_players").select("id,player_number,full_name,category,role,batting_style,bowling_style,previous_team,photo_url,status,sold_team_id,sold_price").eq("tournament_id", tournament.id).order("player_number"),
-    supabaseAdmin.from("auction_sponsors").select("id,name,logo_url,website_url,display_order").eq("tournament_id", tournament.id).order("display_order").order("name"),
+    supabaseAdmin.from("auction_teams").select("id,name,slug,logo_url,points_remaining,rtm_count").eq("tournament_id", tournament.id).order("name"),
+    supabaseAdmin.from("auction_players").select("id,player_number,full_name,category,role,batting_style,bowling_style,previous_team,photo_url,status,sold_team_id,sold_price,rtm_team_id").eq("tournament_id", tournament.id).order("player_number"),
+    supabaseAdmin.from("auction_sponsors").select("id,name,sponsor_title,logo_url,website_url,display_order").eq("tournament_id", tournament.id).order("display_order").order("name"),
   ]);
   const failure = teamsResult.error ?? playersResult.error ?? sponsorsResult.error;
   if (failure) return NextResponse.json({ error: `Unable to load auction data: ${failure.message}` }, { status: 500 });

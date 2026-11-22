@@ -11,11 +11,13 @@ type AuctionAction =
   | { action: "edit_team"; teamId: string; name: string; logoUrl: string | null; rtmCount?: number }
   | { action: "rtm"; playerId: string; teamId: string }
   | { action: "delete_team"; teamId: string }
-  | { action: "add_sponsor"; name: string; logoUrl?: string; websiteUrl?: string }
-  | { action: "edit_sponsor"; sponsorId: string; name: string; logoUrl: string | null; websiteUrl: string | null }
+  | { action: "add_sponsor"; name: string; sponsorTitle?: string; logoUrl?: string; websiteUrl?: string }
+  | { action: "edit_sponsor"; sponsorId: string; name: string; sponsorTitle?: string | null; logoUrl: string | null; websiteUrl: string | null }
   | { action: "delete_sponsor"; sponsorId: string }
+  | { action: "reorder_sponsors"; sponsorIds: string[] }
   | { action: "background"; backgroundUrl: string | null }
   | { action: "schedule"; scheduledDate: string | null }
+  | { action: "tournament_name"; name: string }
   | { action: "presentation"; tournamentLogoUrl: string | null; organizerLogoUrls: string[] }
   | { action: "set_mode"; mode: "trial" | "live"; adminPin?: string }
   | { action: "reset"; adminPin?: string }
@@ -498,22 +500,44 @@ export async function PATCH(request: Request, { params }: Context) {
     }
     case "add_sponsor": {
       const name = typeof action.name === "string" ? action.name.trim() : "";
-      if (!name || name.length > 120 || !isValidUrl(action.logoUrl) || !isValidUrl(action.websiteUrl)) {
-        return NextResponse.json({ error: "Enter a sponsor name and valid image/website URLs." }, { status: 400 });
+      const sponsorTitle = typeof action.sponsorTitle === "string" ? action.sponsorTitle.trim() : "";
+      if (!name || name.length > 120 || (action.sponsorTitle !== undefined && typeof action.sponsorTitle !== "string") || sponsorTitle.length > 120 || !isValidUrl(action.logoUrl) || !isValidUrl(action.websiteUrl)) {
+        return NextResponse.json({ error: "Enter a sponsor name, an optional title up to 120 characters, and valid image/website URLs." }, { status: 400 });
+      }
+      const { data: lastSponsor, error: orderError } = await supabaseAdmin.from("auction_sponsors")
+        .select("display_order").eq("tournament_id", tournament.id).order("display_order", { ascending: false }).limit(1).maybeSingle();
+      if (orderError) return NextResponse.json({ error: `Unable to load sponsor order: ${orderError.message}` }, { status: 500 });
+      if (lastSponsor && lastSponsor.display_order >= 2147483647) {
+        return NextResponse.json({ error: "Sponsor order is full. Reorder sponsors before adding another." }, { status: 409 });
       }
       const { error } = await supabaseAdmin.from("auction_sponsors").insert({
-        tournament_id: tournament.id, name, logo_url: action.logoUrl || null, website_url: action.websiteUrl || null,
+        tournament_id: tournament.id, name, sponsor_title: sponsorTitle || null, logo_url: action.logoUrl || null, website_url: action.websiteUrl || null,
+        display_order: lastSponsor ? lastSponsor.display_order + 1 : 0,
       });
       if (error) return NextResponse.json({ error: `Unable to add sponsor: ${error.message}` }, { status: 500 });
       break;
     }
+    case "reorder_sponsors": {
+      if (!Array.isArray(action.sponsorIds) || action.sponsorIds.length > 2000 ||
+          action.sponsorIds.some((id) => typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) ||
+          new Set(action.sponsorIds).size !== action.sponsorIds.length) {
+        return NextResponse.json({ error: "Provide a valid, non-duplicate sponsor list." }, { status: 400 });
+      }
+      const { error } = await supabaseAdmin.rpc("auction_reorder_sponsors", {
+        p_tournament_id: tournament.id,
+        p_sponsor_ids: action.sponsorIds,
+      });
+      if (error) return NextResponse.json({ error: `Unable to reorder sponsors: ${error.message}` }, { status: error.code === "P0001" ? 409 : 500 });
+      break;
+    }
     case "edit_sponsor": {
       const name = typeof action.name === "string" ? action.name.trim() : "";
-      if (typeof action.sponsorId !== "string" || !action.sponsorId || !name || name.length > 120 || !isValidUrl(action.logoUrl) || !isValidUrl(action.websiteUrl)) {
-        return NextResponse.json({ error: "Enter a sponsor name and valid image/website URLs." }, { status: 400 });
+      const sponsorTitle = typeof action.sponsorTitle === "string" ? action.sponsorTitle.trim() : "";
+      if (typeof action.sponsorId !== "string" || !action.sponsorId || !name || name.length > 120 || (action.sponsorTitle !== undefined && action.sponsorTitle !== null && typeof action.sponsorTitle !== "string") || sponsorTitle.length > 120 || !isValidUrl(action.logoUrl) || !isValidUrl(action.websiteUrl)) {
+        return NextResponse.json({ error: "Enter a sponsor name, an optional title up to 120 characters, and valid image/website URLs." }, { status: 400 });
       }
       const { data, error } = await supabaseAdmin.from("auction_sponsors")
-        .update({ name, logo_url: action.logoUrl ?? null, website_url: action.websiteUrl ?? null })
+        .update({ name, sponsor_title: sponsorTitle || null, logo_url: action.logoUrl ?? null, website_url: action.websiteUrl ?? null })
         .eq("id", action.sponsorId)
         .eq("tournament_id", tournament.id)
         .select("id")
@@ -557,6 +581,20 @@ export async function PATCH(request: Request, { params }: Context) {
         .update({ scheduled_date: scheduledDate, updated_at: new Date().toISOString() })
         .eq("id", tournament.id);
       if (error) return NextResponse.json({ error: `Unable to save the auction date: ${error.message}` }, { status: 500 });
+      break;
+    }
+    case "tournament_name": {
+      const name = typeof action.name === "string" ? action.name.trim() : "";
+      if (!name || name.length > 120) {
+        return NextResponse.json({ error: "Enter a tournament name up to 120 characters." }, { status: 400 });
+      }
+      const { data, error } = await supabaseAdmin.from("auction_tournaments")
+        .update({ name, updated_at: new Date().toISOString() })
+        .eq("id", tournament.id)
+        .select("id")
+        .maybeSingle();
+      if (error) return NextResponse.json({ error: `Unable to update tournament name: ${error.message}` }, { status: 500 });
+      if (!data) return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
       break;
     }
     case "presentation": {
