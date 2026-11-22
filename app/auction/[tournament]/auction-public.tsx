@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useId, useMemo, useState } from "react";
 import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
@@ -48,6 +48,64 @@ function getReserve(soldCount: number, minSquadSize: number, basePrice: number) 
 function getMaxBid(pointsRemaining: number, soldCount: number, minSquadSize: number, basePrice: number, rtmCount = 0) {
   const reserve = getReserve(soldCount, minSquadSize, basePrice);
   return Math.max(0, pointsRemaining - reserve + rtmCount * basePrice);
+}
+
+function ViewerSelect<T extends string>({ label, prefix, value, options, onChange }: {
+  label: string;
+  prefix?: string;
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  const name = useId();
+  const [placement, setPlacement] = useState({ left: false, above: false, maxHeight: 240 });
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? value;
+
+  function close(details: HTMLDetailsElement | null) {
+    if (details) {
+      details.open = false;
+      details.querySelector("summary")?.focus();
+    }
+  }
+
+  return <details
+    className="group relative"
+    onToggle={(event) => {
+      if (!event.currentTarget.open) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const below = window.innerHeight - bounds.bottom - 82;
+      const above = below < 120 && bounds.top > below;
+      setPlacement({
+        left: bounds.right < 176,
+        above,
+        maxHeight: Math.min(240, Math.max(60, (above ? bounds.top : below) - 8)),
+      });
+    }}
+    onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+    }}
+    onKeyDown={(event) => {
+      if (event.key === "Escape" && event.currentTarget.open) close(event.currentTarget);
+    }}
+  >
+    <summary aria-label={`${label}: ${selectedLabel}`} className="flex cursor-pointer list-none items-center gap-2 rounded-full bg-slate-950/45 px-3 py-2 text-[10px] font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 sm:text-xs [&::-webkit-details-marker]:hidden">
+      {prefix && <span className="uppercase">{prefix}</span>}
+      <span className="max-w-28 truncate">{selectedLabel}</span>
+      <span aria-hidden="true" className="text-yellow-300 transition-transform group-open:rotate-180">⌄</span>
+    </summary>
+    <div role="radiogroup" aria-label={label} style={{ maxHeight: placement.maxHeight }} className={`absolute z-30 w-40 overflow-y-auto rounded-xl border border-white/20 bg-blue-950 p-1.5 shadow-xl ${placement.left ? "left-0" : "right-0"} ${placement.above ? "bottom-full mb-2" : "top-full mt-2"}`}>
+      {options.map((option) => <label key={option.value} className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-bold transition focus-within:ring-2 focus-within:ring-yellow-400 ${value === option.value ? "bg-yellow-400 text-slate-950" : "text-white hover:bg-white/10"}`}>
+        <input type="radio" name={name} value={option.value} checked={value === option.value} onClick={(event) => {
+          if (value === option.value) close(event.currentTarget.closest("details"));
+        }} onChange={(event) => {
+          onChange(option.value);
+          close(event.currentTarget.closest("details"));
+        }} className="sr-only" />
+        <span className="min-w-0 break-words">{option.label}</span>
+        {value === option.value && <span aria-hidden="true">✓</span>}
+      </label>)}
+    </div>
+  </details>;
 }
 
 const PlayerCard = memo(function PlayerCard({ player, teams, shouldDisplayCategory }: {
@@ -167,7 +225,7 @@ function AuctionHomeViewer({ tournament, teams, players, sponsors }: {
     <main style={backgroundStyle} className="relative flex h-dvh min-h-[560px] w-screen flex-col overflow-hidden bg-[#dbeafe] bg-cover bg-center text-white">
       {screen !== "sponsors" && currentPlayer?.status === "sold" && <SoldFireworks />}
       <div className={`mx-auto flex min-h-0 w-full max-w-[1920px] flex-1 flex-col p-2 pb-[76px] sm:pb-[82px] ${screen === "sponsors" ? "gap-2 sm:p-3" : "gap-2 sm:gap-3 sm:p-3 lg:flex-row"}`}>
-        {screen !== "sponsors" && <aside className="grid h-fit shrink-0 grid-cols-2 gap-2 lg:w-[35%] lg:min-w-[320px] lg:grid-cols-1 lg:grid-rows-[auto_auto] lg:content-start lg:gap-3 lg:self-start">
+        {screen !== "sponsors" && <aside className="grid h-fit shrink-0 grid-cols-1 gap-2 lg:w-[35%] lg:min-w-[320px] lg:grid-rows-[auto_auto] lg:content-start lg:gap-3 lg:self-start">
           <section className="flex min-w-0 items-center justify-between gap-2 overflow-hidden rounded-xl bg-blue-900/55 px-3 py-2 shadow-lg backdrop-blur-sm sm:px-5">
             {tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt={`${tournament.name} logo`} width={88} height={88} className="h-8 w-8 shrink-0 object-contain min-[400px]:h-10 min-[400px]:w-10 sm:h-16 sm:w-16" />}
             <h1 className="min-w-0 flex-1 text-center text-[clamp(0.75rem,2.7vw,1rem)] font-black uppercase leading-tight tracking-wide text-white [overflow-wrap:anywhere] sm:text-base lg:text-xl">{tournament.name}</h1>
@@ -182,7 +240,7 @@ function AuctionHomeViewer({ tournament, teams, players, sponsors }: {
               <p className="text-[10px] font-bold uppercase tracking-wide text-white/75 sm:text-xs">{tournament.scheduled_date ? "Auction date" : "Current status"}</p>
               <p className="mt-1 text-base font-black sm:text-2xl">{tournament.scheduled_date ? formatAuctionDate(tournament.scheduled_date) : tournament.status.toUpperCase()}</p>
             </div>}
-            {currentPlayer && <div className="mt-3 grid min-w-0 grid-cols-[64px_minmax(0,1fr)_32px] items-center gap-2 text-left sm:mt-5 sm:grid-cols-[112px_minmax(0,1fr)_56px] sm:gap-4">
+            {currentPlayer && <div className={`mt-3 grid min-w-0 items-center gap-2 text-left sm:mt-5 sm:gap-4 ${playerTeam ? "grid-cols-[64px_minmax(0,1fr)_64px] sm:grid-cols-[112px_minmax(0,1fr)_112px] lg:grid-cols-[112px_minmax(0,1fr)_56px]" : "grid-cols-[64px_minmax(0,1fr)] sm:grid-cols-[112px_minmax(0,1fr)]"}`}>
               <div className="relative">
                 {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={144} height={144} className="h-16 w-16 rounded-lg object-cover sm:h-28 sm:w-28" /> : <div className="grid h-16 w-16 place-items-center rounded-lg bg-white/10 text-sm font-black sm:h-28 sm:w-28 sm:text-3xl">{currentPlayer.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>}
                 {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.status === "sold" && currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="!left-1/2 !right-auto !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-2 !px-1 !py-1 !text-[10px] !tracking-normal sm:!px-2 sm:!text-lg" />}
@@ -194,21 +252,34 @@ function AuctionHomeViewer({ tournament, teams, players, sponsors }: {
                 {currentPlayer.role?.trim() && <p className="break-words text-[10px] leading-tight text-white/75 sm:text-xs">Skill: {currentPlayer.role}</p>}
                 {currentPlayer.previous_team?.trim() && <p className="break-words text-[10px] leading-tight text-white/75 sm:text-xs">Previous team: {currentPlayer.previous_team}</p>}
               </div>
-              {playerTeam && <div className="justify-self-end sm:justify-self-auto"><span className="sm:hidden"><TeamMark name={playerTeam.name} logoUrl={playerTeam.logo_url} size="sm" /></span><span className="hidden sm:block"><TeamMark name={playerTeam.name} logoUrl={playerTeam.logo_url} size="md" /></span></div>}
+              {playerTeam && <TeamMark name={playerTeam.name} logoUrl={playerTeam.logo_url} size="viewer" />}
             </div>}
           </section>
         </aside>}
 
         <section className={`flex min-h-0 min-w-0 flex-1 flex-col gap-2 sm:gap-3 ${screen === "sponsors" ? "w-full" : ""}`}>
-          {screen !== "sponsors" && <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-blue-900/55 px-3 py-2 shadow-lg backdrop-blur-sm sm:gap-4 sm:px-4">
+          {screen !== "sponsors" && <header className="relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-blue-900/55 px-3 py-2 shadow-lg backdrop-blur-sm sm:gap-4 sm:px-4">
             <nav className="flex rounded-full bg-slate-950/45 p-1" aria-label="Auction viewer screens">
               {(["overview", "players"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setScreen(tab); setSelectedTeamSlug(""); }} aria-current={screen === tab ? "page" : undefined} className={`rounded-full px-3 py-2 text-[10px] font-black uppercase transition sm:px-5 sm:text-sm ${screen === tab ? "bg-yellow-400 text-slate-950" : "text-white hover:bg-white/10"}`}>{tab === "overview" ? "Teams" : "Players"}</button>)}
             </nav>
             <div className="flex flex-wrap items-center gap-1.5">
               {([["Sold", soldPlayers.length, "bg-green-600"], ["Unsold", unsoldCount, "bg-red-500"], ["Avl", availableCount, "bg-amber-500"]] as const).map(([label, count, color]) => <span key={label} className={`${color} rounded-full px-2.5 py-1 text-[9px] font-black uppercase text-white sm:px-3 sm:text-xs`}>{label} · {count}</span>)}
             </div>
-            {screen === "overview" && !selectedTeam && <label className="flex items-center gap-2 rounded-full bg-slate-950/45 px-3 py-2 text-[10px] font-black uppercase text-white sm:text-xs">Sort by<select value={sortBy} onChange={(event) => setSortBy(event.target.value as "name" | "balance" | "squad")} className="max-w-28 bg-transparent font-bold outline-none sm:max-w-none"><option value="name" className="text-slate-900">Team name</option><option value="balance" className="text-slate-900">Balance</option><option value="squad" className="text-slate-900">Squad size</option></select></label>}
+            {screen === "overview" && !selectedTeam && <ViewerSelect label="Sort teams by" prefix="Sort by" value={sortBy} onChange={setSortBy} options={[
+              { value: "name", label: "Team name" },
+              { value: "balance", label: "Balance" },
+              { value: "squad", label: "Squad size" },
+            ]} />}
           </header>}
+
+          {screen === "players" && <div className="relative z-10 flex shrink-0 flex-wrap items-center gap-2 rounded-xl bg-blue-900/50 p-2.5 shadow-md backdrop-blur-sm sm:p-3">
+            {([["all", "All"], ["sold", "Sold"], ["unsold", "Unsold"], ["available", "Avl"]] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setFilterStatus(value)} className={`rounded-full px-3 py-1.5 text-[9px] font-black uppercase sm:text-xs ${filterStatus === value ? "bg-yellow-400 text-slate-950" : "bg-slate-950/35 text-white"}`}>{label}</button>)}
+            <ViewerSelect label="Filter players by category" value={filterCategory} onChange={setFilterCategory} options={[
+              { value: "all", label: "All categories" },
+              ...categories.map((category) => ({ value: category, label: category })),
+            ]} />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search players" className="h-8 min-w-28 flex-1 rounded-full bg-slate-950/35 px-3 text-[10px] text-white outline-none placeholder:text-white/60 sm:text-xs" />
+          </div>}
 
           <div id="home-auction-content" className="min-h-0 flex-1 overflow-y-auto pr-1">
             {screen === "overview" && !selectedTeam && <div className="grid gap-2 sm:grid-cols-2">
@@ -244,11 +315,6 @@ function AuctionHomeViewer({ tournament, teams, players, sponsors }: {
             </section>}
 
             {screen === "players" && <section>
-              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-blue-900/50 p-2.5 shadow-md backdrop-blur-sm sm:p-3">
-                {([["all", "All"], ["sold", "Sold"], ["unsold", "Unsold"], ["available", "Avl"]] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setFilterStatus(value)} className={`rounded-full px-3 py-1.5 text-[9px] font-black uppercase sm:text-xs ${filterStatus === value ? "bg-yellow-400 text-slate-950" : "bg-slate-950/35 text-white"}`}>{label}</button>)}
-                <select value={filterCategory} onChange={(event) => setFilterCategory(event.target.value)} className="max-w-32 rounded-full bg-slate-950/35 px-3 py-1.5 text-[9px] font-bold text-white outline-none sm:text-xs"><option value="all" className="text-slate-900">All categories</option>{categories.map((category) => <option key={category} value={category} className="text-slate-900">{category}</option>)}</select>
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search players" className="h-8 min-w-28 flex-1 rounded-full bg-slate-950/35 px-3 text-[10px] text-white outline-none placeholder:text-white/60 sm:text-xs" />
-              </div>
               <p className="mb-2 text-xs font-semibold text-slate-800">Showing {filteredPlayers.length} of {players.length} players</p>
               <div className="grid gap-2 sm:grid-cols-2">{filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} teams={teams} shouldDisplayCategory={shouldDisplayCategory} />)}</div>
             </section>}
