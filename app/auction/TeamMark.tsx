@@ -18,7 +18,7 @@ export default function TeamMark({
 }) {
   const sizeClass = size === "sm" ? "h-8 w-8 text-xs"
     : size === "lg" ? "h-24 w-24 text-3xl"
-    : size === "viewer" ? "h-16 w-16 text-xl sm:h-28 sm:w-28 sm:text-3xl lg:h-14 lg:w-14 lg:text-lg"
+    : size === "viewer" ? "h-16 w-16 text-xl sm:h-28 sm:w-28 sm:text-3xl"
     : "h-14 w-14 text-lg";
   if (logoUrl) {
     const dimension = size === "sm" ? 32 : size === "lg" ? 96 : size === "viewer" ? 112 : 56;

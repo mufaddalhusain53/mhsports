@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useEffect, useId, useMemo, useState } from "react";
+import Image from "next/image";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
+import { preload } from "react-dom";
 import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
@@ -26,6 +28,8 @@ type AuctionData = { tournament: Tournament; teams: Team[]; players: Player[]; s
 type View = "home" | "summary" | "players" | "team";
 type PublicScreen = "overview" | "players";
 type HomeScreen = PublicScreen | "sponsors";
+
+class AuctionNotFoundError extends Error {}
 
 const cardClass = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm";
 const inputClass = "mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-orange-500";
@@ -57,55 +61,81 @@ function ViewerSelect<T extends string>({ label, prefix, value, options, onChang
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
 }) {
-  const name = useId();
+  const menuId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
   const [placement, setPlacement] = useState({ left: false, above: false, maxHeight: 240 });
   const selectedLabel = options.find((option) => option.value === value)?.label ?? value;
 
-  function close(details: HTMLDetailsElement | null) {
-    if (details) {
-      details.open = false;
-      details.querySelector("summary")?.focus();
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && !containerRef.current?.contains(event.target)) setOpen(false);
     }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
+
+  function showMenu() {
+    const bounds = triggerRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const below = window.innerHeight - bounds.bottom - 82;
+    const above = below < 120 && bounds.top > below;
+    setPlacement({
+      left: bounds.right < 176,
+      above,
+      maxHeight: Math.min(240, Math.max(60, (above ? bounds.top : below) - 8)),
+    });
+    setOpen(true);
   }
 
-  return <details
-    className="group relative"
-    onToggle={(event) => {
-      if (!event.currentTarget.open) return;
-      const bounds = event.currentTarget.getBoundingClientRect();
-      const below = window.innerHeight - bounds.bottom - 82;
-      const above = below < 120 && bounds.top > below;
-      setPlacement({
-        left: bounds.right < 176,
-        above,
-        maxHeight: Math.min(240, Math.max(60, (above ? bounds.top : below) - 8)),
-      });
-    }}
-    onBlur={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
-    }}
-    onKeyDown={(event) => {
-      if (event.key === "Escape" && event.currentTarget.open) close(event.currentTarget);
-    }}
-  >
-    <summary aria-label={`${label}: ${selectedLabel}`} className="flex cursor-pointer list-none items-center gap-2 rounded-full bg-slate-950/45 px-3 py-2 text-[10px] font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 sm:text-xs [&::-webkit-details-marker]:hidden">
+  function focusOption(key: string) {
+    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? []);
+    if (!buttons.length) return;
+    const activeIndex = buttons.findIndex((button) => button === document.activeElement);
+    const selectedIndex = buttons.findIndex((button) => button.getAttribute("aria-checked") === "true");
+    const index = key === "Home" ? 0 : key === "End" ? buttons.length - 1
+      : activeIndex < 0 ? Math.max(selectedIndex, 0)
+      : (activeIndex + (key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[index].focus();
+  }
+
+  return <div ref={containerRef} className="relative" onBlur={(event) => {
+    if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+  }} onKeyDown={(event) => {
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const key = event.key;
+      if (!open) {
+        showMenu();
+        window.requestAnimationFrame(() => focusOption(key));
+      } else {
+        focusOption(key);
+      }
+    }
+  }}>
+    <button ref={triggerRef} type="button" aria-label={`${label}: ${selectedLabel}`} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => open ? setOpen(false) : showMenu()} className="flex cursor-pointer items-center gap-2 rounded-full bg-slate-950/45 px-3 py-2 text-[10px] font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 sm:text-xs">
       {prefix && <span className="uppercase">{prefix}</span>}
       <span className="max-w-28 truncate">{selectedLabel}</span>
-      <span aria-hidden="true" className="text-yellow-300 transition-transform group-open:rotate-180">⌄</span>
-    </summary>
-    <div role="radiogroup" aria-label={label} style={{ maxHeight: placement.maxHeight }} className={`absolute z-30 w-40 overflow-y-auto rounded-xl border border-white/20 bg-blue-950 p-1.5 shadow-xl ${placement.left ? "left-0" : "right-0"} ${placement.above ? "bottom-full mb-2" : "top-full mt-2"}`}>
-      {options.map((option) => <label key={option.value} className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-bold transition focus-within:ring-2 focus-within:ring-yellow-400 ${value === option.value ? "bg-yellow-400 text-slate-950" : "text-white hover:bg-white/10"}`}>
-        <input type="radio" name={name} value={option.value} checked={value === option.value} onClick={(event) => {
-          if (value === option.value) close(event.currentTarget.closest("details"));
-        }} onChange={(event) => {
+      <span aria-hidden="true" className={`text-yellow-300 transition-transform ${open ? "rotate-180" : ""}`}>⌄</span>
+    </button>
+    {open && <div ref={menuRef} id={menuId} role="menu" aria-label={label} style={{ maxHeight: placement.maxHeight }} className={`absolute z-30 w-40 overflow-y-auto rounded-xl border border-white/20 bg-blue-950 p-1.5 shadow-xl ${placement.left ? "left-0" : "right-0"} ${placement.above ? "bottom-full mb-2" : "top-full mt-2"}`}>
+      {options.map((option) => <button key={option.value} type="button" role="menuitemradio" aria-checked={value === option.value} tabIndex={value === option.value ? 0 : -1} onClick={() => {
           onChange(option.value);
-          close(event.currentTarget.closest("details"));
-        }} className="sr-only" />
+          setOpen(false);
+          triggerRef.current?.focus();
+        }} className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold transition focus-visible:ring-2 focus-visible:ring-yellow-400 ${value === option.value ? "bg-yellow-400 text-slate-950" : "text-white hover:bg-white/10"}`}>
         <span className="min-w-0 break-words">{option.label}</span>
         {value === option.value && <span aria-hidden="true">✓</span>}
-      </label>)}
-    </div>
-  </details>;
+      </button>)}
+    </div>}
+  </div>;
 }
 
 const PlayerCard = memo(function PlayerCard({ player, teams, shouldDisplayCategory }: {
@@ -156,11 +186,12 @@ const AuctionPane = memo(function AuctionPane({ currentPlayer, tournament, teams
   </div>;
 });
 
-function AuctionHomeViewer({ tournament, teams, players, sponsors }: {
+function AuctionHomeViewer({ tournament, teams, players, sponsors, refreshMessage }: {
   tournament: Tournament;
   teams: Team[];
   players: Player[];
   sponsors: Sponsor[];
+  refreshMessage: string;
 }) {
   const [screen, setScreen] = useState<HomeScreen>("overview");
   const [selectedTeamSlug, setSelectedTeamSlug] = useState("");
@@ -224,8 +255,9 @@ function AuctionHomeViewer({ tournament, teams, players, sponsors }: {
   return (
     <main style={backgroundStyle} className="relative flex h-dvh min-h-[560px] w-screen flex-col overflow-hidden bg-[#dbeafe] bg-cover bg-center text-white">
       {screen !== "sponsors" && currentPlayer?.status === "sold" && <SoldFireworks />}
+      {refreshMessage && <p role="status" className="absolute bottom-20 left-1/2 z-30 w-max max-w-[90%] -translate-x-1/2 rounded-lg bg-slate-950 px-3 py-2 text-center text-xs font-bold text-white shadow-lg">{refreshMessage}</p>}
       <div className={`mx-auto flex min-h-0 w-full max-w-[1920px] flex-1 flex-col p-2 pb-[76px] sm:pb-[82px] ${screen === "sponsors" ? "gap-2 sm:p-3" : "gap-2 sm:gap-3 sm:p-3 lg:flex-row"}`}>
-        {screen !== "sponsors" && <aside className="grid h-fit shrink-0 grid-cols-1 gap-2 lg:w-[35%] lg:min-w-[320px] lg:grid-rows-[auto_auto] lg:content-start lg:gap-3 lg:self-start">
+        {screen !== "sponsors" && <aside className="grid h-fit shrink-0 grid-cols-1 gap-2 lg:w-[45%] lg:min-w-[320px] lg:grid-rows-[auto_auto] lg:content-start lg:gap-3 lg:self-start xl:w-[36%]">
           <section className="flex min-w-0 items-center justify-between gap-2 overflow-hidden rounded-xl bg-blue-900/55 px-3 py-2 shadow-lg backdrop-blur-sm sm:px-5">
             {tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt={`${tournament.name} logo`} width={88} height={88} className="h-8 w-8 shrink-0 object-contain min-[400px]:h-10 min-[400px]:w-10 sm:h-16 sm:w-16" />}
             <h1 className="min-w-0 flex-1 text-center text-[clamp(0.75rem,2.7vw,1rem)] font-black uppercase leading-tight tracking-wide text-white [overflow-wrap:anywhere] sm:text-base lg:text-xl">{tournament.name}</h1>
@@ -240,7 +272,7 @@ function AuctionHomeViewer({ tournament, teams, players, sponsors }: {
               <p className="text-[10px] font-bold uppercase tracking-wide text-white/75 sm:text-xs">{tournament.scheduled_date ? "Auction date" : "Current status"}</p>
               <p className="mt-1 text-base font-black sm:text-2xl">{tournament.scheduled_date ? formatAuctionDate(tournament.scheduled_date) : tournament.status.toUpperCase()}</p>
             </div>}
-            {currentPlayer && <div className={`mt-3 grid min-w-0 items-center gap-2 text-left sm:mt-5 sm:gap-4 ${playerTeam ? "grid-cols-[64px_minmax(0,1fr)_64px] sm:grid-cols-[112px_minmax(0,1fr)_112px] lg:grid-cols-[112px_minmax(0,1fr)_56px]" : "grid-cols-[64px_minmax(0,1fr)] sm:grid-cols-[112px_minmax(0,1fr)]"}`}>
+            {currentPlayer && <div className={`mt-3 grid min-w-0 items-center gap-2 text-left sm:mt-5 sm:gap-4 ${playerTeam ? "grid-cols-[64px_minmax(0,1fr)_64px] sm:grid-cols-[112px_minmax(0,1fr)_112px]" : "grid-cols-[64px_minmax(0,1fr)] sm:grid-cols-[112px_minmax(0,1fr)]"}`}>
               <div className="relative">
                 {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={144} height={144} className="h-16 w-16 rounded-lg object-cover sm:h-28 sm:w-28" /> : <div className="grid h-16 w-16 place-items-center rounded-lg bg-white/10 text-sm font-black sm:h-28 sm:w-28 sm:text-3xl">{currentPlayer.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>}
                 {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.status === "sold" && currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="!left-1/2 !right-auto !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-2 !px-1 !py-1 !text-[10px] !tracking-normal sm:!px-2 sm:!text-lg" />}
@@ -347,7 +379,10 @@ function AuctionHomeViewer({ tournament, teams, players, sponsors }: {
   );
 }
 
-export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; view: View; teamSlug?: string }) {
+export default function AuctionPublic({ slug, view, teamSlug, loadingLogoUrl }: { slug: string; view: View; teamSlug?: string; loadingLogoUrl?: string }) {
+  const auctionUrl = `/api/auctions/${encodeURIComponent(slug)}`;
+  preload(auctionUrl, { as: "fetch", crossOrigin: "anonymous" });
+  const requestRef = useRef<{ url: string; promise: Promise<AuctionData> } | null>(null);
   const [data, setData] = useState<AuctionData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -359,24 +394,73 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
 
   useEffect(() => {
     let active = true;
-    fetch(`/api/auctions/${encodeURIComponent(slug)}`, { cache: "no-store" })
-      .then(async (response) => {
+    const storageKey = `auction-viewer-v1:${slug}`;
+    if (view === "home") {
+      void Promise.resolve().then(() => {
+        if (!active) return;
+        try {
+          const saved = sessionStorage.getItem(storageKey);
+          if (!saved) return;
+          const snapshot: AuctionData = JSON.parse(saved);
+          if (snapshot?.tournament?.slug === slug && Array.isArray(snapshot.teams) && Array.isArray(snapshot.players) && Array.isArray(snapshot.sponsors)) {
+            setData(snapshot);
+          } else {
+            console.warn("Ignoring an invalid saved auction view.");
+            sessionStorage.removeItem(storageKey);
+          }
+        } catch (reason) {
+          console.warn("Unable to restore the saved auction view.", reason);
+        }
+      });
+    }
+    let request = requestRef.current;
+    if (!request || request.url !== auctionUrl) {
+      request = { url: auctionUrl, promise: fetch(auctionUrl).then(async (response) => {
         const result = await response.json();
+        if (response.status === 404) throw new AuctionNotFoundError(result.error || "Auction not found.");
         if (!response.ok) throw new Error(result.error || "Unable to load this auction.");
+        return result;
+      }) };
+      requestRef.current = request;
+    }
+    request.promise
+      .then((result) => {
         if (active) {
           setData(result);
           setError("");
         }
       })
       .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Unable to load this auction.");
+        if (active) {
+          if (reason instanceof AuctionNotFoundError) {
+            setData(null);
+            try {
+              sessionStorage.removeItem(storageKey);
+            } catch (storageError) {
+              console.warn("Unable to remove the saved auction view.", storageError);
+            }
+          }
+          setError(reason instanceof Error ? reason.message : "Unable to load this auction.");
+        }
       })
-      .finally(() => { if (active) setLoading(false); });
+      .finally(() => {
+        if (requestRef.current === request) requestRef.current = null;
+        if (active) setLoading(false);
+      });
     return () => { active = false; };
-  }, [slug]);
+  }, [auctionUrl, slug, view]);
 
   useEffect(() => {
-    if (!data?.tournament.id) return;
+    if (view !== "home" || loading || error || !data || data.tournament.slug !== slug) return;
+    try {
+      sessionStorage.setItem(`auction-viewer-v1:${slug}`, JSON.stringify(data));
+    } catch (reason) {
+      console.warn("Unable to save the auction view for refresh.", reason);
+    }
+  }, [data, error, loading, slug, view]);
+
+  useEffect(() => {
+    if (loading || error || !data?.tournament.id) return;
     const tournamentId = data.tournament.id;
     const channel = supabase.channel(`public-auction-${tournamentId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "auction_tournaments", filter: `slug=eq.${slug}` }, ({ new: row }) => {
@@ -409,7 +493,7 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
       })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [data?.tournament.id, slug]);
+  }, [data?.tournament.id, error, loading, slug]);
 
   const team = data?.teams.find((item) => item.slug === selectedTeamSlug);
   const currentPlayer = data?.players.find((player) => player.id === data.tournament.current_player_id);
@@ -430,15 +514,20 @@ export default function AuctionPublic({ slug, view, teamSlug }: { slug: string; 
     });
   }, [data?.players, filterCategory, filterStatus, search, screen, team]);
 
-  if (loading) return <main className="min-h-screen bg-slate-50 px-4 py-20 text-center text-slate-600">Loading live auction…</main>;
-  if (error || !data) return <main className="min-h-screen bg-slate-50 px-4 py-20 text-center"><p className="font-bold text-red-700">{error || "Auction not found."}</p><Link href="/auction" className="mt-4 inline-block font-bold text-orange-700">Back to auctions</Link></main>;
+  if (!data && loading) return <main className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 px-6">
+    <Image src={loadingLogoUrl || `/api/auctions/${encodeURIComponent(slug)}/logo`} alt="Auction logo" width={192} height={192} preload unoptimized className="h-40 w-40 object-contain drop-shadow-lg sm:h-48 sm:w-48" />
+    <div role="progressbar" aria-label="Loading auction" className="h-2 w-56 max-w-full overflow-hidden rounded-full bg-white/25">
+      <div className="h-full w-1/3 rounded-full bg-yellow-400 motion-safe:animate-[auction-loading-bar_1.4s_ease-in-out_infinite] motion-reduce:mx-auto" />
+    </div>
+  </main>;
+  if (!data) return <main className="min-h-screen bg-slate-50 px-4 py-20 text-center"><p className="font-bold text-red-700">{error || "Auction not found."}</p><Link href="/auction" className="mt-4 inline-block font-bold text-orange-700">Back to auctions</Link></main>;
 
   const { tournament, teams, players, sponsors } = data;
   const soldPlayers = filteredSoldPlayers;
   const activePlayers = filteredAvailableCount;
 
   if (view === "home") {
-    return <AuctionHomeViewer tournament={tournament} teams={teams} players={players} sponsors={sponsors} />;
+    return <AuctionHomeViewer tournament={tournament} teams={teams} players={players} sponsors={sponsors} refreshMessage={loading ? "Updating auction data…" : error ? `Showing saved data. ${error}` : ""} />;
   }
 
   const pageBackground = tournament.background_url
