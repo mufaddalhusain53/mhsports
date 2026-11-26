@@ -6,11 +6,13 @@ import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
 import SoldFireworks from "../sold-fireworks";
 import { sortSponsors } from "@/lib/auction/sponsors";
+import { getAuctionBasePrice, upsertAuctionCategory, type AuctionPriceCategory } from "@/lib/auction/pricing";
+import type { ProjectorPlayerField } from "@/lib/auction/projector-fields";
 import { supabase } from "@/lib/supabase/client";
 
 type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
 type Player = {
-  id: string; player_number: number; full_name: string; category: string; role: string | null;
+  id: string; player_number: number; full_name: string; category: string; category_id: string | null; role: string | null;
   batting_style: string | null; bowling_style: string | null; previous_team: string | null; photo_url: string | null;
   status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null; rtm_team_id: string | null;
 };
@@ -18,9 +20,9 @@ type Sponsor = { id: string; name: string; sponsor_title: string | null; logo_ur
 type Tournament = {
   id: string; slug: string; name: string; status: string; points_per_team: number; base_price: number; min_squad_size: number; max_squad_size: number;
   current_player_id: string | null; current_bid: number | null; current_bid_team_id: string | null;
-  background_url: string | null; tournament_logo_url: string | null; organizer_logo_urls: string[];
+  background_url: string | null; tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[];
 };
-type Data = { tournament: Tournament; teams: Team[]; players: Player[]; sponsors: Sponsor[] };
+type Data = { tournament: Tournament; teams: Team[]; players: Player[]; categories: AuctionPriceCategory[]; sponsors: Sponsor[] };
 type Tab = "live" | "teams" | "players";
 
 function points(value: number | null | undefined) {
@@ -80,6 +82,14 @@ export default function AuctionProjector({ slug }: { slug: string }) {
           return { ...previous, players: previous.players.map((player) => player.id === row.id ? { ...player, ...row } : player) };
         });
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "auction_categories", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
+        const row = change.new as AuctionPriceCategory;
+        setData((previous) => {
+          if (!previous) return previous;
+          if (change.eventType === "DELETE") return { ...previous, categories: previous.categories.filter((category) => category.id !== change.old.id) };
+          return { ...previous, categories: upsertAuctionCategory(previous.categories, row) };
+        });
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "auction_sponsors", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
         const row = change.new as Partial<Sponsor>;
         setData((previous) => {
@@ -135,7 +145,7 @@ export default function AuctionProjector({ slug }: { slug: string }) {
 
   if (!data) return <main className="grid h-dvh place-items-center overflow-hidden bg-slate-950 p-6 text-center text-white"><p>{error || "Loading projector…"}</p></main>;
 
-  const { tournament, teams, players, sponsors } = data;
+  const { tournament, teams, players, categories, sponsors } = data;
   const currentPlayer = players.find((player) => player.id === tournament.current_player_id);
   const currentTeam = teams.find((team) => team.id === tournament.current_bid_team_id);
   const resultTeam = currentPlayer?.status === "sold"
@@ -163,10 +173,10 @@ export default function AuctionProjector({ slug }: { slug: string }) {
   const shouldDisplayCategory = categoryValues.length > 1;
   const roleValue = currentPlayer ? (currentPlayer.role?.trim() || (shouldDisplayCategory ? currentPlayer.category.trim() : "")) : "";
   const detailCards = currentPlayer ? [
-    ...(roleValue ? [{ label: "Skill", value: roleValue }] : []),
-    ...(currentPlayer.batting_style?.trim() ? [{ label: "Batting style", value: currentPlayer.batting_style.trim() }] : []),
-    ...(currentPlayer.bowling_style?.trim() ? [{ label: "Bowling style", value: currentPlayer.bowling_style.trim() }] : []),
-    ...(currentPlayer.previous_team?.trim() ? [{ label: "Previous team", value: currentPlayer.previous_team.trim() }] : []),
+    ...(tournament.projector_player_fields.includes("skill") && roleValue ? [{ label: "Skill", value: roleValue }] : []),
+    ...(tournament.projector_player_fields.includes("batting_style") && currentPlayer.batting_style?.trim() ? [{ label: "Batting style", value: currentPlayer.batting_style.trim() }] : []),
+    ...(tournament.projector_player_fields.includes("bowling_style") && currentPlayer.bowling_style?.trim() ? [{ label: "Bowling style", value: currentPlayer.bowling_style.trim() }] : []),
+    ...(tournament.projector_player_fields.includes("previous_team") && currentPlayer.previous_team?.trim() ? [{ label: "Previous team", value: currentPlayer.previous_team.trim() }] : []),
   ] : [];
   const pageSize = tab === "teams" ? 6 : 12;
   const pageItems = tab === "teams" ? teams : filteredPlayers;
@@ -229,7 +239,7 @@ export default function AuctionProjector({ slug }: { slug: string }) {
                     {currentPlayer.status === "sold" ? "Sold for" : currentPlayer.status === "unsold" ? "Auction result" : "Player bid"}
                   </p>
                   <p className="mt-0.5 truncate text-xl font-black leading-none text-cyan-200 sm:text-3xl">
-                    {currentPlayer.status === "sold" ? points(currentPlayer.sold_price) : currentPlayer.status === "unsold" ? "UNSOLD" : points(tournament.current_bid ?? tournament.base_price)}
+                    {currentPlayer.status === "sold" ? points(currentPlayer.sold_price) : currentPlayer.status === "unsold" ? "UNSOLD" : points(tournament.current_bid ?? getAuctionBasePrice(currentPlayer, categories, tournament.base_price))}
                   </p>
                 </div>
                 <p className="mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-white/80 sm:text-xs">

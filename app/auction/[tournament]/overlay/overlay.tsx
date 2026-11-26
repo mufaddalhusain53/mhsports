@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AuctionImage from "@/app/components/AuctionImage";
 import TeamMark from "@/app/auction/TeamMark";
+import { getAuctionBasePrice, upsertAuctionCategory, type AuctionPriceCategory } from "@/lib/auction/pricing";
 import { supabase } from "@/lib/supabase/client";
 
 type Team = { id: string; name: string; logo_url: string | null; points_remaining: number; player_count: number };
@@ -11,6 +12,7 @@ type Player = {
   player_number: number;
   full_name: string;
   category: string;
+  category_id: string | null;
   role: string | null;
   batting_style: string | null;
   bowling_style: string | null;
@@ -31,7 +33,7 @@ type Tournament = {
   current_bid_team_id: string | null;
   tournament_logo_url: string | null;
 };
-type OverlayData = { tournament: Tournament; teams: Team[]; player: Player | null };
+type OverlayData = { tournament: Tournament; teams: Team[]; player: Player | null; categories: AuctionPriceCategory[] };
 
 function points(value: number | null | undefined) {
   return value === null || value === undefined ? "—" : Number(value).toLocaleString("en-IN");
@@ -137,6 +139,14 @@ export default function AuctionOverlay({ slug }: { slug: string }) {
           };
         });
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "auction_categories", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
+        const row = change.new as AuctionPriceCategory;
+        setData((previous) => {
+          if (!previous) return previous;
+          if (change.eventType === "DELETE") return { ...previous, categories: previous.categories.filter((category) => category.id !== change.old.id) };
+          return { ...previous, categories: upsertAuctionCategory(previous.categories, row) };
+        });
+      })
       .subscribe((status) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setError("Live updates disconnected.");
         else if (status === "SUBSCRIBED") setError("");
@@ -148,7 +158,7 @@ export default function AuctionOverlay({ slug }: { slug: string }) {
     {error && <p role="alert" className="rounded-lg bg-red-950/90 px-4 py-2 text-sm font-bold text-white">{error}</p>}
   </main>;
 
-  const { tournament, teams, player } = data;
+  const { tournament, teams, player, categories } = data;
   const teamId = leadingTeamId;
   const sortedTeams = [...teams].sort((left, right) => {
     if (left.id === teamId) return -1;
@@ -164,7 +174,7 @@ export default function AuctionOverlay({ slug }: { slug: string }) {
     ]
     : sortedTeams;
   const result = player?.status === "sold" ? (player.rtm_team_id ? "RTM" : "SOLD") : player?.status === "unsold" ? "UNSOLD" : null;
-  const bid = player?.status === "sold" ? player.sold_price : tournament.current_bid ?? (player ? tournament.base_price : null);
+  const bid = player?.status === "sold" ? player.sold_price : tournament.current_bid ?? (player ? getAuctionBasePrice(player, categories, tournament.base_price) : null);
   const statusLabel = tournament.status === "live" ? "LIVE AUCTION" : tournament.status === "completed" ? "AUCTION COMPLETE" : "AUCTION";
   const priceLabel = result ? (result === "UNSOLD" ? "UNSOLD AT" : "SOLD FOR") : tournament.current_bid === null ? "BASE PRICE" : "CURRENT BID";
 

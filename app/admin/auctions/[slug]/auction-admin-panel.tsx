@@ -7,6 +7,8 @@ import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
 import { sortSponsors } from "@/lib/auction/sponsors";
+import { getAuctionBasePrice, upsertAuctionCategory } from "@/lib/auction/pricing";
+import { PROJECTOR_PLAYER_FIELDS, type ProjectorPlayerField } from "@/lib/auction/projector-fields";
 import { supabase } from "@/lib/supabase/client";
 
 type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
@@ -22,7 +24,7 @@ type Tournament = {
   id: string; slug: string; name: string; status: string; auction_mode: "trial" | "live"; scheduled_date: string | null; rtm_enabled: boolean; points_per_team: number; base_price: number;
   bid_increment: number; bid_increment_rules: IncrementRule[]; min_squad_size: number; max_squad_size: number; current_player_id: string | null;
   current_bid: number | null; current_bid_team_id: string | null; background_url: string | null;
-  tournament_logo_url: string | null; organizer_logo_urls: string[];
+  tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[];
 };
 type AuctionData = { tournament: Tournament; teams: Team[]; players: Player[]; sponsors: Sponsor[]; categories: AuctionCategory[] };
 type PlayerFormData = Omit<Player, "category_id" | "status" | "sold_team_id" | "sold_price" | "rtm_team_id">;
@@ -84,6 +86,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [organizerLogoUrls, setOrganizerLogoUrls] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
   const [rtmEnabled, setRtmEnabled] = useState(true);
+  const [projectorFields, setProjectorFields] = useState<ProjectorPlayerField[]>(() => PROJECTOR_PLAYER_FIELDS.map((field) => field.id));
   const [setupTab, setSetupTab] = useState<SetupTab>("overview");
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorTitle, setSponsorTitle] = useState("");
@@ -127,6 +130,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     setOrganizerLogoUrls((result.tournament.organizer_logo_urls ?? []).join("\n"));
     setScheduledDate(result.tournament.scheduled_date ?? "");
     setRtmEnabled(result.tournament.rtm_enabled);
+    setProjectorFields(result.tournament.projector_player_fields);
     setIncrementRules(incrementRulesFor(result.tournament));
   }, [slug]);
 
@@ -144,6 +148,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           setOrganizerLogoUrls((result.tournament.organizer_logo_urls ?? []).join("\n"));
           setScheduledDate(result.tournament.scheduled_date ?? "");
           setRtmEnabled(result.tournament.rtm_enabled);
+          setProjectorFields(result.tournament.projector_player_fields);
           setIncrementRules(incrementRulesFor(result.tournament));
         }
       })
@@ -175,6 +180,14 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           if (!previous) return previous;
           if (change.eventType === "DELETE") return { ...previous, players: previous.players.filter((player) => player.id !== change.old.id) };
           return { ...previous, players: previous.players.map((player) => player.id === row.id ? { ...player, ...row } : player) };
+        });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "auction_categories", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
+        const row = change.new as AuctionCategory;
+        setData((previous) => {
+          if (!previous) return previous;
+          if (change.eventType === "DELETE") return { ...previous, categories: previous.categories.filter((category) => category.id !== change.old.id) };
+          return { ...previous, categories: upsertAuctionCategory(previous.categories, row) };
         });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "auction_sponsors", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
@@ -231,8 +244,9 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
       return player.full_name.toLowerCase().includes(query);
     });
   }, [data?.players, playerPoolFilter, playerPoolSearchMode]);
+  const currentBasePrice = data ? getAuctionBasePrice(currentPlayer, data.categories, data.tournament.base_price) : 0;
   const nextBid = data?.tournament.current_bid == null
-    ? currentCategory?.base_price ?? data?.tournament.base_price ?? 0
+    ? currentBasePrice
     : Math.round((data.tournament.current_bid + incrementForBid(data.tournament, data.tournament.current_bid)) * 100) / 100;
   function reserveForTeam(team: Team, categoryId = currentPlayer?.category_id) {
     if (!data) return 0;
@@ -275,11 +289,11 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const bidAmount = bidDraft?.key === bidDraftKey ? bidDraft.value : String(nextBid ?? "");
   const minimumSelectableBid = data?.tournament.current_bid == null
     ? (nextBid ?? 0)
-    : currentCategory?.base_price ?? data?.tournament.base_price ?? 0;
+    : currentBasePrice;
   function adjustBid(direction: "up" | "down") {
     if (!data) return;
     const current = Number(bidAmount);
-    const value = Number.isFinite(current) ? current : (data.tournament.current_bid ?? data.tournament.base_price);
+    const value = Number.isFinite(current) ? current : (data.tournament.current_bid ?? currentBasePrice);
     const increment = direction === "up"
       ? incrementForBid(data.tournament, value)
       : incrementForBid(data.tournament, Math.max(minimumSelectableBid, value - 0.01));
@@ -906,6 +920,18 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <button type="button" className={buttonClass} disabled={busy} onClick={() => void action({ action: "rtm_visibility", enabled: rtmEnabled })}>Save RTM setting</button>
           </div>
         </section>
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-black text-slate-900">Player Detail Fields</h2>
+          <p className="mt-1 text-sm text-slate-600">Choose which details appear in the projector player profile. The player name always remains visible.</p>
+          <fieldset className="mt-4 flex flex-wrap gap-x-6 gap-y-3" disabled={busy}>
+            <legend className="sr-only">Projector player detail fields</legend>
+            {PROJECTOR_PLAYER_FIELDS.map((field) => <label key={field.id} className="flex items-center gap-2 text-sm font-bold text-slate-700">
+              <input type="checkbox" checked={projectorFields.includes(field.id)} onChange={(event) => setProjectorFields((current) => event.target.checked ? [...current, field.id] : current.filter((id) => id !== field.id))} className="h-4 w-4 accent-orange-600" />
+              {field.label}
+            </label>)}
+          </fieldset>
+          <button type="button" className={`${buttonClass} mt-4`} disabled={busy} onClick={() => void action({ action: "projector_player_fields", fields: projectorFields })}>Save player detail fields</button>
+        </section>
         </>}
 
         <div className={`mt-7 grid gap-6 ${setupTab === "branding" || setupTab === "rules" ? "lg:grid-cols-2" : "lg:grid-cols-1"} ${setupTab === "overview" || setupTab === "players" ? "hidden" : ""}`}>
@@ -1091,7 +1117,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
                     <button type="button" className={buttonClass + " rounded-xl"} disabled={busy || queueSettingsDirty || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Next player</button>
                     <button type="button" disabled={busy} className="rounded-xl border border-orange-300/30 bg-orange-300/10 px-4 py-2.5 text-sm font-black text-orange-200 hover:bg-orange-300/20 disabled:opacity-50" onClick={() => void reauctionUnsoldPlayers()}>Re-auction all unsold</button>
                   </div> : <>
-                    <div className="mt-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{currentTeam ? `Highest bid · ${currentTeam.name}` : "Opening price"}</p><p className="mt-1 text-4xl font-black tracking-tight text-orange-300 sm:text-5xl">{data.tournament.current_bid ?? currentCategory?.base_price ?? data.tournament.base_price}<span className="ml-2 text-sm font-bold text-slate-400">pts</span></p></div><div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-right"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Bid increment</p><p className="mt-1 text-lg font-black text-white">{incrementForBid(data.tournament, data.tournament.current_bid ?? currentCategory?.base_price ?? data.tournament.base_price)} pts</p></div></div>
+                    <div className="mt-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{currentTeam ? `Highest bid · ${currentTeam.name}` : "Opening price"}</p><p className="mt-1 text-4xl font-black tracking-tight text-orange-300 sm:text-5xl">{data.tournament.current_bid ?? currentBasePrice}<span className="ml-2 text-sm font-bold text-slate-400">pts</span></p></div><div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-right"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Bid increment</p><p className="mt-1 text-lg font-black text-white">{incrementForBid(data.tournament, data.tournament.current_bid ?? currentBasePrice)} pts</p></div></div>
                     <label className="mt-4 block text-xs font-bold text-slate-300">Set bid amount<div className="mt-1 flex max-w-md overflow-hidden rounded-xl border border-white/15 bg-white text-slate-900 shadow-inner"><button type="button" aria-label="Decrease bid" onClick={() => adjustBid("down")} disabled={Number(bidAmount) <= minimumSelectableBid} className="w-12 border-r border-slate-200 text-xl font-black text-slate-700 disabled:opacity-40">−</button><input aria-label="Bid amount" value={bidAmount} onChange={(event) => setBidDraft({ key: bidDraftKey, value: event.target.value })} onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); adjustBid(event.key === "ArrowUp" ? "up" : "down"); } }} type="number" min={minimumSelectableBid} step="any" className="bid-amount h-12 min-w-0 flex-1 px-3 text-lg font-black outline-none" /><button type="button" aria-label="Increase bid" onClick={() => adjustBid("up")} className="w-12 border-l border-slate-200 text-xl font-black text-slate-700">+</button></div></label>
                     {data.tournament.current_bid != null && <p className="mt-2 text-xs text-slate-400">To correct the bid, enter a lower amount and select the team. Higher bids follow the configured increment.</p>}
                     <div className="mt-4">

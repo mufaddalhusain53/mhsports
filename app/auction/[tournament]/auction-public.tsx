@@ -9,11 +9,12 @@ import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
 import SoldFireworks from "./sold-fireworks";
 import { sortSponsors } from "@/lib/auction/sponsors";
+import { getAuctionBasePrice, upsertAuctionCategory, type AuctionPriceCategory } from "@/lib/auction/pricing";
 import { supabase } from "@/lib/supabase/client";
 
 type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
 type Player = {
-  id: string; player_number: number; full_name: string; category: string; role: string | null;
+  id: string; player_number: number; full_name: string; category: string; category_id: string | null; role: string | null;
   batting_style: string | null; bowling_style: string | null; previous_team: string | null; photo_url: string | null;
   status: "available" | "sold" | "unsold"; sold_team_id: string | null; sold_price: number | null; rtm_team_id: string | null;
 };
@@ -24,7 +25,7 @@ type Tournament = {
   current_bid: number | null; current_bid_team_id: string | null; background_url: string | null; tournament_logo_url: string | null;
   organizer_logo_urls: string[]; updated_at: string;
 };
-type AuctionData = { tournament: Tournament; teams: Team[]; players: Player[]; sponsors: Sponsor[] };
+type AuctionData = { tournament: Tournament; teams: Team[]; players: Player[]; categories: AuctionPriceCategory[]; sponsors: Sponsor[] };
 type View = "home" | "summary" | "players" | "team";
 type PublicScreen = "overview" | "players";
 type HomeScreen = PublicScreen | "sponsors";
@@ -164,10 +165,11 @@ const PlayerCard = memo(function PlayerCard({ player, teams, shouldDisplayCatego
   );
 });
 
-const AuctionPane = memo(function AuctionPane({ currentPlayer, tournament, teams, currentBidTeam, shouldDisplayCategory }: {
+const AuctionPane = memo(function AuctionPane({ currentPlayer, tournament, teams, categories, currentBidTeam, shouldDisplayCategory }: {
   currentPlayer: Player | undefined;
   tournament: Tournament;
   teams: Team[];
+  categories: AuctionPriceCategory[];
   currentBidTeam: Team | undefined;
   shouldDisplayCategory: boolean;
 }) {
@@ -175,7 +177,7 @@ const AuctionPane = memo(function AuctionPane({ currentPlayer, tournament, teams
     {currentPlayer && <div className="relative">
       {currentPlayer.status !== "available" && <AuctionResultTag status={tournament.rtm_enabled !== false && currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="right-0 top-0" />}
       <div className="flex items-center gap-3">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}<div><p className="text-xl font-black">{currentPlayer.full_name}</p><p className="text-sm text-white/80">#{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}</p>{[currentPlayer.role, currentPlayer.batting_style, currentPlayer.bowling_style].filter(Boolean).length > 0 && <p className="text-xs text-white/70">{[currentPlayer.role, currentPlayer.batting_style, currentPlayer.bowling_style].filter(Boolean).join(" · ")}</p>}{currentPlayer.previous_team && <p className="text-xs text-white/70">Team Last Year ({currentPlayer.previous_team})</p>}</div></div>
-      {currentPlayer.status !== "unsold" && <div className="mt-4 flex items-baseline gap-2"><span className="text-3xl font-black">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? tournament.base_price)}</span><span className="text-sm font-bold text-white/75">points</span></div>}
+      {currentPlayer.status !== "unsold" && <div className="mt-4 flex items-baseline gap-2"><span className="text-3xl font-black">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? getAuctionBasePrice(currentPlayer, categories, tournament.base_price))}</span><span className="text-sm font-bold text-white/75">points</span></div>}
       {currentBidTeam && currentPlayer.status === "available" ? <div className="mt-2 flex items-center gap-2 text-sm font-bold text-white/90"><TeamMark name={currentBidTeam.name} logoUrl={currentBidTeam.logo_url} size="sm" /><span>{currentBidTeam.name}</span></div> : <p className="mt-1 text-sm text-white/80">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : "No bids yet"}</p>}
     </div>}
     {!currentPlayer && tournament.status === "setup" && tournament.scheduled_date && <div className="flex h-full flex-col items-center justify-center text-center">
@@ -185,10 +187,11 @@ const AuctionPane = memo(function AuctionPane({ currentPlayer, tournament, teams
   </div>;
 });
 
-function AuctionHomeViewer({ tournament, teams, players, sponsors, refreshMessage }: {
+function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponsors, refreshMessage }: {
   tournament: Tournament;
   teams: Team[];
   players: Player[];
+  priceCategories: AuctionPriceCategory[];
   sponsors: Sponsor[];
   refreshMessage: string;
 }) {
@@ -266,21 +269,21 @@ function AuctionHomeViewer({ tournament, teams, players, sponsors, refreshMessag
               <p className="text-[10px] font-bold uppercase tracking-wide text-white/75 sm:text-xs">{tournament.scheduled_date ? "Auction date" : "Current status"}</p>
               <p className="mt-1 text-base font-black sm:text-2xl">{tournament.scheduled_date ? formatAuctionDate(tournament.scheduled_date) : tournament.status.toUpperCase()}</p>
             </div>}
-            {currentPlayer && <div className={`mt-3 grid min-w-0 items-center gap-2 text-left sm:mt-5 sm:gap-4 ${playerTeam ? "grid-cols-[64px_minmax(0,1fr)_64px] sm:grid-cols-[112px_minmax(0,1fr)_112px]" : "grid-cols-[64px_minmax(0,1fr)] sm:grid-cols-[112px_minmax(0,1fr)]"}`}>
+            {currentPlayer && <div className={`mt-3 grid min-w-0 items-center gap-2 text-left sm:mt-5 sm:gap-4 ${playerTeam ? "grid-cols-[64px_minmax(0,1fr)_minmax(64px,max-content)] sm:grid-cols-[112px_minmax(0,1fr)_minmax(112px,max-content)]" : "grid-cols-[64px_minmax(0,1fr)] sm:grid-cols-[112px_minmax(0,1fr)]"}`}>
               <div className="relative">
                 {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={144} height={144} className="h-16 w-16 rounded-lg object-cover sm:h-28 sm:w-28" /> : <div className="grid h-16 w-16 place-items-center rounded-lg bg-white/10 text-sm font-black sm:h-28 sm:w-28 sm:text-3xl">{currentPlayer.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>}
                 {currentPlayer.status !== "available" && <AuctionResultTag status={tournament.rtm_enabled !== false && currentPlayer.status === "sold" && currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="!left-1/2 !right-auto !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-2 !px-1 !py-1 !text-[10px] !tracking-normal sm:!px-2 sm:!text-lg" />}
               </div>
               <div className="min-w-0">
                 <p className="line-clamp-2 break-words text-sm font-black leading-tight sm:text-lg">{currentPlayer.full_name}</p>
-                {!playerTeam && currentPlayer.status !== "unsold" && <p className="whitespace-nowrap text-[clamp(1rem,3vw,1.5rem)] font-black leading-tight text-yellow-300">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? tournament.base_price)} pts</p>}
+                {!playerTeam && currentPlayer.status !== "unsold" && <p className="whitespace-nowrap text-[clamp(1rem,3vw,1.5rem)] font-black leading-tight text-yellow-300">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? getAuctionBasePrice(currentPlayer, priceCategories, tournament.base_price))} pts</p>}
                 {currentPlayer.status === "sold" && playerTeam && <p className="break-words text-[10px] font-bold leading-tight text-white/90 sm:text-xs">Sold to: {playerTeam.name}</p>}
                 {currentPlayer.role?.trim() && <p className="break-words text-[10px] leading-tight text-white/75 sm:text-xs">Skill: {currentPlayer.role}</p>}
                 {currentPlayer.previous_team?.trim() && <p className="break-words text-[10px] leading-tight text-white/75 sm:text-xs">Previous team: {currentPlayer.previous_team}</p>}
               </div>
               {playerTeam && <div className="flex min-w-0 flex-col items-center gap-1">
                 <TeamMark name={playerTeam.name} logoUrl={playerTeam.logo_url} size="viewer" />
-                {currentPlayer.status !== "unsold" && <p className="w-full text-center text-xs font-black leading-tight text-yellow-300 [overflow-wrap:anywhere] sm:text-lg">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? tournament.base_price)} pts</p>}
+                {currentPlayer.status !== "unsold" && <p className="w-full whitespace-nowrap text-center text-xs font-black leading-tight text-yellow-300 sm:text-lg">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? getAuctionBasePrice(currentPlayer, priceCategories, tournament.base_price))} pts</p>}
               </div>}
             </div>}
           </section>
@@ -402,7 +405,7 @@ export default function AuctionPublic({ slug, view, teamSlug, loadingLogoUrl }: 
           const saved = sessionStorage.getItem(storageKey);
           if (!saved) return;
           const snapshot: AuctionData = JSON.parse(saved);
-          if (snapshot?.tournament?.slug === slug && Array.isArray(snapshot.teams) && Array.isArray(snapshot.players) && Array.isArray(snapshot.sponsors)) {
+          if (snapshot?.tournament?.slug === slug && Array.isArray(snapshot.teams) && Array.isArray(snapshot.players) && Array.isArray(snapshot.categories) && Array.isArray(snapshot.sponsors)) {
             setData(snapshot);
           } else {
             console.warn("Ignoring an invalid saved auction view.");
@@ -482,6 +485,14 @@ export default function AuctionPublic({ slug, view, teamSlug, loadingLogoUrl }: 
           return { ...previous, players: previous.players.map((item) => item.id === row.id ? { ...item, ...row } : item) };
         });
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "auction_categories", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
+        const row = change.new as AuctionPriceCategory;
+        setData((previous) => {
+          if (!previous) return previous;
+          if (change.eventType === "DELETE") return { ...previous, categories: previous.categories.filter((category) => category.id !== change.old.id) };
+          return { ...previous, categories: upsertAuctionCategory(previous.categories, row) };
+        });
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "auction_sponsors", filter: `tournament_id=eq.${tournamentId}` }, (change) => {
         const row = change.new as Partial<Sponsor>;
         setData((previous) => {
@@ -522,12 +533,12 @@ export default function AuctionPublic({ slug, view, teamSlug, loadingLogoUrl }: 
   </main>;
   if (!data) return <main className="min-h-screen bg-slate-50 px-4 py-20 text-center"><p className="font-bold text-red-700">{error || "Auction not found."}</p><Link href="/auction" className="mt-4 inline-block font-bold text-orange-700">Back to auctions</Link></main>;
 
-  const { tournament, teams, players, sponsors } = data;
+  const { tournament, teams, players, categories: priceCategories, sponsors } = data;
   const soldPlayers = filteredSoldPlayers;
   const activePlayers = filteredAvailableCount;
 
   if (view === "home") {
-    return <AuctionHomeViewer tournament={tournament} teams={teams} players={players} sponsors={sponsors} refreshMessage={loading ? "Updating auction data…" : error ? `Showing saved data. ${error}` : ""} />;
+    return <AuctionHomeViewer tournament={tournament} teams={teams} players={players} priceCategories={priceCategories} sponsors={sponsors} refreshMessage={loading ? "Updating auction data…" : error ? `Showing saved data. ${error}` : ""} />;
   }
 
   const pageBackground = tournament.background_url
@@ -559,19 +570,19 @@ export default function AuctionPublic({ slug, view, teamSlug, loadingLogoUrl }: 
           {currentPlayer.status !== "available" && <AuctionResultTag status={tournament.rtm_enabled !== false && currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} />}
           <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div className="flex items-center gap-4">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={`${currentPlayer.full_name}`} width={80} height={80} className="h-20 w-20 rounded-xl object-cover" />}<div><h2 className="text-2xl font-black">{currentPlayer.full_name}</h2><p className="mt-1 text-sm text-slate-700">#{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}{currentPlayer.role ? ` · ${currentPlayer.role}` : ""}</p></div></div>
-            <div className="sm:text-right">{currentPlayer.status !== "unsold" && <p className="text-2xl font-black">{currentPlayer.status === "sold" ? formatPoints(currentPlayer.sold_price) : formatPoints(tournament.current_bid ?? tournament.base_price)} pts</p>}<p className="text-sm text-slate-600">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : currentBidTeam ? currentBidTeam.name : "No bids yet"}</p></div>
+            <div className="sm:text-right">{currentPlayer.status !== "unsold" && <p className="text-2xl font-black">{currentPlayer.status === "sold" ? formatPoints(currentPlayer.sold_price) : formatPoints(tournament.current_bid ?? getAuctionBasePrice(currentPlayer, priceCategories, tournament.base_price))} pts</p>}<p className="text-sm text-slate-600">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : currentBidTeam ? currentBidTeam.name : "No bids yet"}</p></div>
           </div>
         </section>}
 
         {screen === "overview" && !team && <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.65fr)]">
           <div className="grid gap-4">
-            <AuctionPane currentPlayer={currentPlayer} tournament={tournament} teams={teams} currentBidTeam={currentBidTeam} shouldDisplayCategory={shouldDisplayCategory} />
+            <AuctionPane currentPlayer={currentPlayer} tournament={tournament} teams={teams} categories={priceCategories} currentBidTeam={currentBidTeam} shouldDisplayCategory={shouldDisplayCategory} />
             {currentPlayer && !currentPlayer.id && <div className="rounded-2xl border border-white/30 bg-slate-950/60 p-6 text-white shadow-lg backdrop-blur-md">
               {currentPlayer && <div className="relative mt-5 border-t border-white/20 pt-4">
                 {currentPlayer.status !== "available" && <AuctionResultTag status={tournament.rtm_enabled !== false && currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="right-0 top-3" />}
                 <p className="text-xs font-bold uppercase tracking-wider text-orange-200">{currentPlayer.status === "available" ? "Now on the auction block" : "Auction result"}</p>
                 <div className="mt-2 flex items-center gap-3">{currentPlayer.photo_url && <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={64} height={64} className="h-16 w-16 rounded-lg object-cover" />}<div><p className="text-xl font-black">{currentPlayer.full_name}</p><p className="text-sm text-white/80">#{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}</p></div></div>
-                {currentPlayer.status !== "unsold" && <div className="mt-4 flex items-end justify-between gap-2"><span className="text-3xl font-black">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? tournament.base_price)}</span><span className="pb-1 text-sm font-bold text-white/75">points</span></div>}
+                {currentPlayer.status !== "unsold" && <div className="mt-4 flex items-end justify-between gap-2"><span className="text-3xl font-black">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? getAuctionBasePrice(currentPlayer, priceCategories, tournament.base_price))}</span><span className="pb-1 text-sm font-bold text-white/75">points</span></div>}
                 <p className="mt-1 text-sm text-white/80">{currentPlayer.status === "sold" ? `Sold to ${teams.find((item) => item.id === currentPlayer.sold_team_id)?.name ?? "team"}` : currentPlayer.status === "unsold" ? "" : currentBidTeam ? currentBidTeam.name : "No bids yet"}</p>
               </div>}
               <div className="mt-5 grid grid-cols-3 gap-2 border-t border-white/20 pt-4 text-center">
@@ -612,7 +623,7 @@ export default function AuctionPublic({ slug, view, teamSlug, loadingLogoUrl }: 
           <div className="mt-7 grid gap-3 sm:grid-cols-2">{filteredPlayers.length ? filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} teams={teams} shouldDisplayCategory={shouldDisplayCategory} rtmEnabled={tournament.rtm_enabled !== false} />) : <p className={`${cardClass} text-slate-600`}>Team yet to pick players.</p>}</div>
         </>}
 
-        {screen === "players" && <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.65fr)]"><AuctionPane currentPlayer={currentPlayer} tournament={tournament} teams={teams} currentBidTeam={currentBidTeam} shouldDisplayCategory={shouldDisplayCategory} /><div>
+        {screen === "players" && <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.65fr)]"><AuctionPane currentPlayer={currentPlayer} tournament={tournament} teams={teams} categories={priceCategories} currentBidTeam={currentBidTeam} shouldDisplayCategory={shouldDisplayCategory} /><div>
           <section className="grid gap-3 rounded-2xl border border-white/30 bg-slate-950/25 p-5 text-white shadow-lg">
             <div className="flex flex-wrap items-end gap-2">{[["all", "ALL", "border-slate-300 bg-slate-100 text-slate-700"], ["sold", "SOLD", "border-green-300 bg-green-50 text-green-800"], ["unsold", "UNSOLD", "border-red-200 bg-red-50 text-red-700"], ["available", "AVL", "border-slate-300 bg-slate-100 text-slate-700"]].map(([value, label, colors]) => <button key={value} type="button" onClick={() => setFilterStatus(value)} className={`rounded-full border px-4 py-2 text-xs font-black ${filterStatus === value ? "ring-2 ring-orange-400 ring-offset-1" : ""} ${colors}`}>{label}</button>)}</div>
             <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setFilterCategory("all")} className={`rounded-full border px-4 py-2 text-xs font-black ${filterCategory === "all" ? "border-orange-400 bg-orange-400 text-slate-950" : "border-slate-300 bg-white text-slate-700"}`}>ALL CATEGORIES</button>{categories.map((category) => <button key={category} type="button" onClick={() => setFilterCategory(category)} className={`rounded-full border px-4 py-2 text-xs font-black ${filterCategory === category ? "border-orange-400 bg-orange-400 text-slate-950" : "border-slate-300 bg-white text-slate-700"}`}>{category}</button>)}</div>

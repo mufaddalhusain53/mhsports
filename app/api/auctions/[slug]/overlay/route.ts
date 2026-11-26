@@ -15,14 +15,14 @@ export async function GET(_request: Request, { params }: Context) {
   }
   if (!tournament) return NextResponse.json({ error: "Auction tournament not found." }, { status: 404 });
 
-  const [teamsResult, playerResult, rosterResult] = await Promise.all([
+  const [teamsResult, playerResult, rosterResult, categoriesResult] = await Promise.all([
     supabaseAdmin.from("auction_teams")
       .select("id,name,logo_url,points_remaining")
       .eq("tournament_id", tournament.id)
       .order("name"),
     tournament.current_player_id
       ? supabaseAdmin.from("auction_players")
-        .select("id,player_number,full_name,category,role,batting_style,bowling_style,photo_url,status,sold_team_id,sold_price,rtm_team_id")
+        .select("id,player_number,full_name,category,category_id,role,batting_style,bowling_style,photo_url,status,sold_team_id,sold_price,rtm_team_id")
         .eq("tournament_id", tournament.id)
         .eq("id", tournament.current_player_id)
         .maybeSingle()
@@ -31,8 +31,11 @@ export async function GET(_request: Request, { params }: Context) {
       .select("sold_team_id")
       .eq("tournament_id", tournament.id)
       .eq("status", "sold"),
+    supabaseAdmin.from("auction_categories")
+      .select("id,base_price")
+      .eq("tournament_id", tournament.id),
   ]);
-  const failure = teamsResult.error ?? playerResult.error ?? rosterResult.error;
+  const failure = teamsResult.error ?? playerResult.error ?? rosterResult.error ?? categoriesResult.error;
   if (failure) {
     return NextResponse.json({ error: `Unable to load auction overlay: ${failure.message}` }, { status: 500 });
   }
@@ -47,7 +50,7 @@ export async function GET(_request: Request, { params }: Context) {
   }));
 
   return NextResponse.json(
-    { tournament, teams, player: playerResult.data },
+    { tournament, teams, player: playerResult.data, categories: categoriesResult.data },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
