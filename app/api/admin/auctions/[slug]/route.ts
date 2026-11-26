@@ -17,6 +17,7 @@ type AuctionAction =
   | { action: "reorder_sponsors"; sponsorIds: string[] }
   | { action: "background"; backgroundUrl: string | null }
   | { action: "schedule"; scheduledDate: string | null }
+  | { action: "rtm_visibility"; enabled: boolean }
   | { action: "tournament_name"; name: string }
   | { action: "presentation"; tournamentLogoUrl: string | null; organizerLogoUrls: string[] }
   | { action: "set_mode"; mode: "trial" | "live"; adminPin?: string }
@@ -581,6 +582,19 @@ export async function PATCH(request: Request, { params }: Context) {
         .update({ scheduled_date: scheduledDate, updated_at: new Date().toISOString() })
         .eq("id", tournament.id);
       if (error) return NextResponse.json({ error: `Unable to save the auction date: ${error.message}` }, { status: 500 });
+      break;
+    }
+    case "rtm_visibility": {
+      if (typeof action.enabled !== "boolean") {
+        return NextResponse.json({ error: "Choose whether RTM is enabled." }, { status: 400 });
+      }
+      const { data, error } = await supabaseAdmin.from("auction_tournaments")
+        .update({ rtm_enabled: action.enabled, updated_at: new Date().toISOString() })
+        .eq("id", tournament.id)
+        .select("id")
+        .maybeSingle();
+      if (error) return NextResponse.json({ error: `Unable to save RTM setting: ${error.message}` }, { status: 500 });
+      if (!data) return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
       break;
     }
     case "tournament_name": {

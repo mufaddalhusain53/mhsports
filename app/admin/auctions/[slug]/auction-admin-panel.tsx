@@ -19,7 +19,7 @@ type Sponsor = { id: string; name: string; sponsor_title: string | null; logo_ur
 type AuctionCategory = { id: string; name: string; base_price: number; min_players: number; max_players: number };
 type IncrementRule = { from: number; increment: number };
 type Tournament = {
-  id: string; slug: string; name: string; status: string; auction_mode: "trial" | "live"; scheduled_date: string | null; points_per_team: number; base_price: number;
+  id: string; slug: string; name: string; status: string; auction_mode: "trial" | "live"; scheduled_date: string | null; rtm_enabled: boolean; points_per_team: number; base_price: number;
   bid_increment: number; bid_increment_rules: IncrementRule[]; min_squad_size: number; max_squad_size: number; current_player_id: string | null;
   current_bid: number | null; current_bid_team_id: string | null; background_url: string | null;
   tournament_logo_url: string | null; organizer_logo_urls: string[];
@@ -83,6 +83,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [tournamentLogoUrl, setTournamentLogoUrl] = useState("");
   const [organizerLogoUrls, setOrganizerLogoUrls] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
+  const [rtmEnabled, setRtmEnabled] = useState(true);
   const [setupTab, setSetupTab] = useState<SetupTab>("overview");
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorTitle, setSponsorTitle] = useState("");
@@ -125,6 +126,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     setTournamentLogoUrl(result.tournament.tournament_logo_url ?? "");
     setOrganizerLogoUrls((result.tournament.organizer_logo_urls ?? []).join("\n"));
     setScheduledDate(result.tournament.scheduled_date ?? "");
+    setRtmEnabled(result.tournament.rtm_enabled);
     setIncrementRules(incrementRulesFor(result.tournament));
   }, [slug]);
 
@@ -141,6 +143,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           setTournamentLogoUrl(result.tournament.tournament_logo_url ?? "");
           setOrganizerLogoUrls((result.tournament.organizer_logo_urls ?? []).join("\n"));
           setScheduledDate(result.tournament.scheduled_date ?? "");
+          setRtmEnabled(result.tournament.rtm_enabled);
           setIncrementRules(incrementRulesFor(result.tournament));
         }
       })
@@ -888,6 +891,19 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <label className="block text-xs font-bold text-slate-600">Scheduled date<input type="date" value={scheduledDate} onChange={(event) => setScheduledDate(event.target.value)} className={inputClass} /></label>
             <button type="button" className={buttonClass} disabled={busy} onClick={() => void action({ action: "schedule", scheduledDate: scheduledDate || null })}>Save date</button>
             <Link href={`/admin/auctions/${slug}/run`} className={buttonClass}>Open auction console →</Link>
+          </div>
+        </section>
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-black text-slate-900">RTM enabled league</h2>
+          <p className="mt-1 text-sm text-slate-600">Controls RTM visibility on viewer pages. It does not change auction rules or team RTM counts.</p>
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="block text-xs font-bold text-slate-600">RTM enabled
+              <select value={rtmEnabled ? "yes" : "no"} onChange={(event) => setRtmEnabled(event.target.value === "yes")} className={inputClass} disabled={busy}>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </label>
+            <button type="button" className={buttonClass} disabled={busy} onClick={() => void action({ action: "rtm_visibility", enabled: rtmEnabled })}>Save RTM setting</button>
           </div>
         </section>
         </>}

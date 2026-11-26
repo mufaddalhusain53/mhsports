@@ -30,6 +30,50 @@ body {
   to { transform: translateX(300%); }
 }
 
+.sponsor-strip {
+  overflow: hidden;
+}
+
+.sponsor-strip-track {
+  display: flex;
+  width: max-content;
+  min-width: 200%;
+  animation: sponsor-strip-scroll 20s linear infinite;
+}
+
+.sponsor-strip-group {
+  display: flex;
+  min-width: max-content;
+  flex: 1 0 50%;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.sponsor-strip:hover .sponsor-strip-track,
+.sponsor-strip:focus-within .sponsor-strip-track {
+  animation-play-state: paused;
+}
+
+@keyframes sponsor-strip-scroll {
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sponsor-strip {
+    overflow-x: auto;
+  }
+
+  .sponsor-strip-track {
+    min-width: 100%;
+    animation: none;
+  }
+
+  .sponsor-strip-duplicate {
+    display: none;
+  }
+}
+
 @media (max-width: 639px) {
   #home-auction-content {
     scrollbar-width: none;
