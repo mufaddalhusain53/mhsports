@@ -8,6 +8,7 @@ import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
 import ViewerSelect from "@/app/auction/ViewerSelect";
+import { useMainSite } from "@/app/auction/useMainSite";
 import SoldFireworks from "./sold-fireworks";
 import { sortSponsors } from "@/lib/auction/sponsors";
 import { getAuctionBasePrice, upsertAuctionCategory, type AuctionPriceCategory } from "@/lib/auction/pricing";
@@ -309,6 +310,7 @@ function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponso
 }
 
 export default function AuctionPublic({ slug, view, teamSlug, loadingLogoUrl }: { slug: string; view: View; teamSlug?: string; loadingLogoUrl?: string }) {
+  const isMainSite = useMainSite();
   const auctionUrl = `/api/auctions/${encodeURIComponent(slug)}`;
   preload(auctionUrl, { as: "fetch", crossOrigin: "anonymous" });
   const requestRef = useRef<{ url: string; promise: Promise<AuctionData> } | null>(null);
@@ -475,7 +477,7 @@ export default function AuctionPublic({ slug, view, teamSlug, loadingLogoUrl }: 
     <main style={pageBackground} className="min-h-screen bg-slate-100 bg-cover bg-fixed bg-center text-slate-950">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-7 sm:px-8">
-          <Link href="/auction" className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">MH Sports · Auctions</Link>
+          <Link href="/auction" className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">{isMainSite ? "MH Sports · Auctions" : "Auctions"}</Link>
           <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div className="flex items-center gap-4">{tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt={`${tournament.name} logo`} width={72} height={72} className="h-14 w-14 shrink-0 rounded-lg object-contain" />}<div><h1 className="text-3xl font-black sm:text-4xl">{tournament.name}</h1><p className="mt-1 text-sm text-slate-600">Live auction board · read-only</p></div></div>
             <span className="w-fit rounded-full bg-orange-100 px-3 py-1.5 text-xs font-black uppercase text-orange-800">{tournament.status}</span>

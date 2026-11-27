@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useMainSite } from "./useMainSite";
 
 type Tournament = { id: string; slug: string; name: string; status: string };
 
 export default function AuctionsPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [error, setError] = useState("");
+  const isMainSite = useMainSite();
   useEffect(() => {
     let active = true;
     fetch("/api/auctions", { cache: "no-store" })
@@ -21,7 +23,7 @@ export default function AuctionsPage() {
   }, []);
   return <main className="min-h-screen bg-slate-50 px-4 py-12 text-slate-950 sm:px-8">
     <div className="mx-auto max-w-4xl">
-      <Link href="/tournaments" className="text-sm font-bold text-orange-700">← MH Sports</Link>
+      {isMainSite && <Link href="/tournaments" className="text-sm font-bold text-orange-700">← MH Sports</Link>}
       <h1 className="mt-4 text-3xl font-black">Live Auctions</h1>
       <p className="mt-2 text-slate-600">Follow live tournament auction boards and team points.</p>
       {error && <p role="alert" className="mt-5 rounded-lg bg-red-50 p-4 text-sm font-semibold text-red-800">{error}</p>}
