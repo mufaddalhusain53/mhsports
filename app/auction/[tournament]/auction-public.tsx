@@ -233,6 +233,7 @@ function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponso
               ...categories.map((category) => ({ value: category, label: category })),
             ]} />
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search players" className="h-8 min-w-28 flex-1 rounded-full bg-slate-950/35 px-3 text-[10px] text-white outline-none placeholder:text-white/60 sm:text-xs" />
+            <span className="whitespace-nowrap rounded-full bg-slate-950/35 px-3 py-2 text-[10px] font-black text-white sm:text-xs">{filteredPlayers.length} / {players.length} players</span>
           </div>}
 
           <div id="home-auction-content" className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -269,7 +270,6 @@ function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponso
             </section>}
 
             {screen === "players" && <section>
-              <p className="mb-2 text-xs font-semibold text-slate-800">Showing {filteredPlayers.length} of {players.length} players</p>
               <div className="grid gap-2 sm:grid-cols-2">{filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} teams={teams} shouldDisplayCategory={shouldDisplayCategory} rtmEnabled={tournament.rtm_enabled !== false} playerFields={tournament.projector_player_fields} />)}</div>
             </section>}
 

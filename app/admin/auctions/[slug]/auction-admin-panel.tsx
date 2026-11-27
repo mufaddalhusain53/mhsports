@@ -41,6 +41,14 @@ const subscribeToOrigin = () => () => {};
 const getPublicOrigin = () => getAuctionOrigin(window.location.hostname, window.location.origin);
 const getServerPublicOrigin = () => `https://${AUCTION_DOMAIN}`;
 
+function ClipboardIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+    <path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+    <rect x="8" y="2" width="8" height="6" rx="2" />
+    <path d="M8 12h8M8 16h8" />
+  </svg>;
+}
+
 function incrementRulesFor(tournament: Tournament): IncrementRule[] {
   const rules = Array.isArray(tournament.bid_increment_rules) ? tournament.bid_increment_rules : [];
   return rules.length ? rules : [{ from: 0, increment: tournament.bid_increment }];
@@ -861,6 +869,18 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   if (!data) return <main className="min-h-screen bg-slate-50 p-8">{error || "Loading auction…"}</main>;
 
   const publicUrl = `${publicOrigin}/auction/${encodeURIComponent(data.tournament.slug)}`;
+  const shareUrl = `https://${AUCTION_DOMAIN}/auction/${encodeURIComponent(data.tournament.slug)}`;
+
+  async function copyShareUrl(label: string, suffix = "") {
+    const url = `${shareUrl}${suffix}`;
+    setError(""); setMessage("");
+    try {
+      await navigator.clipboard.writeText(url);
+      setMessage(`${label} URL copied: ${url}`);
+    } catch {
+      setError(`Could not copy the ${label.toLowerCase()} URL. Copy it manually: ${url}`);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-7 sm:px-8">
@@ -875,11 +895,20 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           <span className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-black uppercase text-slate-700 shadow-sm">{data.tournament.status}</span>
         </header>
         <nav className="mt-5 flex flex-wrap gap-2">
-          <Link href={`/admin/auctions/${slug}`} className={`rounded-lg border px-4 py-2 text-sm font-bold ${view === "setup" ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-300 bg-white text-slate-700"}`}>Tournament setup</Link>
-          <Link href={`/admin/auctions/${slug}/run`} className={`rounded-lg border px-4 py-2 text-sm font-bold ${view === "run" ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-300 bg-white text-slate-700"}`}>Run auction</Link>
-          <Link href={publicUrl} target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Open viewer page ↗</Link>
-          <Link href={`${publicUrl}/projector`} target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Open projector ↗</Link>
-          <Link href={`${publicUrl}/overlay`} target="_blank" className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-bold text-orange-800">YouTube overlay ↗</Link>
+          <Link href={`/admin/auctions/${slug}`} className={`rounded-lg border px-4 py-2 text-sm font-bold ${view === "setup" ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-300 bg-white text-slate-700"}`}>Auction Setup</Link>
+          <Link href={`/admin/auctions/${slug}/run`} className={`rounded-lg border px-4 py-2 text-sm font-bold ${view === "run" ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-300 bg-white text-slate-700"}`}>Auction Console</Link>
+          <div className="inline-flex">
+            <Link href={publicUrl} target="_blank" className="rounded-l-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Viewer ↗</Link>
+            <button type="button" onClick={() => copyShareUrl("Viewer")} aria-label="Copy viewer URL" title="Copy viewer URL" className="rounded-r-lg border border-l-0 border-slate-300 bg-white px-3 py-2 text-slate-700 hover:bg-slate-50"><ClipboardIcon /></button>
+          </div>
+          <div className="inline-flex">
+            <Link href={`${publicUrl}/projector`} target="_blank" className="rounded-l-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Projector ↗</Link>
+            <button type="button" onClick={() => copyShareUrl("Projector", "/projector")} aria-label="Copy projector URL" title="Copy projector URL" className="rounded-r-lg border border-l-0 border-slate-300 bg-white px-3 py-2 text-slate-700 hover:bg-slate-50"><ClipboardIcon /></button>
+          </div>
+          <div className="inline-flex">
+            <Link href={`${publicUrl}/overlay`} target="_blank" className="rounded-l-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-bold text-orange-800">YouTube Overlay ↗</Link>
+            <button type="button" onClick={() => copyShareUrl("Overlay", "/overlay")} aria-label="Copy overlay URL" title="Copy overlay URL" className="rounded-r-lg border border-l-0 border-orange-300 bg-orange-50 px-3 py-2 text-orange-800 hover:bg-orange-100"><ClipboardIcon /></button>
+          </div>
         </nav>
         {(error || message) && <p role={error ? "alert" : "status"} className={`mt-5 rounded-lg px-4 py-3 text-sm font-semibold ${error ? "bg-red-50 text-red-800" : "bg-green-50 text-green-800"}`}>{error || message}</p>}
 
