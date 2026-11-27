@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
+import ViewerSelect from "@/app/auction/ViewerSelect";
 import SoldFireworks from "../sold-fireworks";
 import { sortSponsors } from "@/lib/auction/sponsors";
 import { getAuctionBasePrice, upsertAuctionCategory, type AuctionPriceCategory } from "@/lib/auction/pricing";
@@ -348,20 +349,21 @@ export default function AuctionProjector({ slug }: { slug: string }) {
           </div>}
 
           {(tab === "players" || selectedTeam) && <div className="flex h-full min-h-0 flex-col">
-            <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+            {selectedTeam && <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-3">
-                {selectedTeam && <button type="button" onClick={() => { setSelectedTeamId(null); setListPage(0); }} className="shrink-0 rounded-lg bg-white/15 px-3 py-2 text-xs font-bold hover:bg-white/25">← Back to teams</button>}
-                {selectedTeam && <TeamMark name={selectedTeam.name} logoUrl={selectedTeam.logo_url} size="sm" />}
-                <div className="min-w-0"><h2 className="truncate text-xl font-black sm:text-3xl">{selectedTeam ? `${selectedTeam.name} squad` : "Players"}</h2><p className="text-xs text-white/70">{selectedTeam ? `${displayedPlayers.length} players · Balance ${points(selectedTeam.points_remaining)} pts` : `Showing ${displayedPlayers.length} of ${players.length} players`}</p></div>
+                <button type="button" onClick={() => { setSelectedTeamId(null); setListPage(0); }} className="shrink-0 rounded-lg bg-white/15 px-3 py-2 text-xs font-bold hover:bg-white/25">← Back to teams</button>
+                <TeamMark name={selectedTeam.name} logoUrl={selectedTeam.logo_url} size="sm" />
+                <div className="min-w-0"><h2 className="truncate text-xl font-black sm:text-3xl">{selectedTeam.name} squad</h2><p className="text-xs text-white/70">{displayedPlayers.length} players · Balance {points(selectedTeam.points_remaining)} pts</p></div>
               </div>
-            </div>
-            {!selectedTeam && <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2 rounded-xl bg-blue-900/50 p-2">
+            </div>}
+            {!selectedTeam && <div className="relative z-10 mb-2 flex shrink-0 flex-wrap items-center gap-2 rounded-xl bg-blue-900/50 p-2">
               {([["all", "All"], ["sold", "Sold"], ["unsold", "Unsold"], ["available", "Avl"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filterStatus === value} onClick={() => { setFilterStatus(value); resetPlayerScroll(); }} className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase sm:text-xs ${filterStatus === value ? "bg-yellow-400 text-slate-950" : "bg-slate-950/35 text-white hover:bg-slate-950/55"}`}>{label}</button>)}
-              <select aria-label="Filter players by category" value={filterCategory} onChange={(event) => { setFilterCategory(event.target.value); resetPlayerScroll(); }} className="h-8 max-w-48 rounded-full bg-slate-950/55 px-3 text-xs font-bold text-white">
-                <option value="">All categories</option>
-                {categoryValues.map((category) => <option key={category} value={category}>{category}</option>)}
-              </select>
+              <ViewerSelect label="Filter players by category" value={filterCategory} onChange={(value) => { setFilterCategory(value); resetPlayerScroll(); }} options={[
+                { value: "", label: "All categories" },
+                ...categoryValues.map((category) => ({ value: category, label: category })),
+              ]} />
               <input value={search} onChange={(event) => { setSearch(event.target.value); resetPlayerScroll(); }} placeholder="Search players…" aria-label="Search players" className="h-8 min-w-28 flex-1 rounded-full bg-slate-950/35 px-3 text-xs text-white outline-none placeholder:text-white/60" />
+              <p aria-live="polite" className="rounded-lg bg-slate-950/35 px-3 py-2 text-xs font-bold text-white">Players: {displayedPlayers.length} / {players.length}</p>
             </div>}
             {selectedTeam && displayedPlayers.length === 0 && <p className="mt-4 text-sm text-white/75">No players in this squad yet.</p>}
             <div id={selectedTeam ? undefined : "projector-player-list"} ref={selectedTeam ? undefined : playerListRef} role={selectedTeam ? undefined : "region"} aria-label={selectedTeam ? undefined : "Player list"} tabIndex={selectedTeam ? undefined : 0} className={`grid min-h-0 flex-1 grid-cols-2 gap-2 ${selectedTeam ? "auto-rows-fr sm:grid-cols-3" : "auto-rows-[minmax(6rem,auto)] content-start overflow-y-auto xl:grid-cols-4"}`}>
