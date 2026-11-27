@@ -54,4 +54,4 @@ Before the first bid, the console, viewer, projector, and stream overlay display
 
 Share `/auction/{tournament-slug}` with viewers. They do not need to sign in. The viewer displays tournament sponsors in a moving strip above the navigation; the Sponsor tab shows their full details. Viewers can use the page navigation to open the team summary, full player list, or an individual team page. The public `/auction` page lists tournaments after they have started.
 
-On `beyondauctions.vercel.app`, the homepage opens the auction list. Non-auction pages redirect to `mhsports53.vercel.app`; auction pages, API routes, and assets remain available on the auction domain.
+On `beyondauctions.vercel.app`, the homepage opens the auction list. The admin panel links to the viewer, projector, and overlay on this domain, except on localhost where they stay local for testing. Non-auction pages, including admin pages, redirect to `mhsports53.vercel.app`; auction pages, API routes, and assets remain available on the auction domain.

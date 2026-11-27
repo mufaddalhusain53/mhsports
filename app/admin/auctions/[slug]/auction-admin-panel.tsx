@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import * as XLSX from "xlsx";
 import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
 import { sortSponsors } from "@/lib/auction/sponsors";
 import { getAuctionBasePrice, upsertAuctionCategory } from "@/lib/auction/pricing";
+import { AUCTION_DOMAIN, getAuctionOrigin } from "@/lib/auction/domains";
 import { PROJECTOR_PLAYER_FIELDS, type ProjectorPlayerField } from "@/lib/auction/projector-fields";
 import type { ProjectorTheme } from "@/lib/auction/projector-theme";
 import { supabase } from "@/lib/supabase/client";
@@ -36,6 +37,9 @@ type SetupTab = "overview" | "rules" | "teams" | "players" | "branding" | "spons
 
 const inputClass = "mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal outline-none focus:border-orange-500";
 const buttonClass = "rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50";
+const subscribeToOrigin = () => () => {};
+const getPublicOrigin = () => getAuctionOrigin(window.location.hostname, window.location.origin);
+const getServerPublicOrigin = () => `https://${AUCTION_DOMAIN}`;
 
 function incrementRulesFor(tournament: Tournament): IncrementRule[] {
   const rules = Array.isArray(tournament.bid_increment_rules) ? tournament.bid_increment_rules : [];
@@ -74,6 +78,7 @@ function publicPlayerRow(row: Record<string, unknown>, index: number) {
 }
 
 export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: string; view?: "setup" | "run" }) {
+  const publicOrigin = useSyncExternalStore(subscribeToOrigin, getPublicOrigin, getServerPublicOrigin);
   const [data, setData] = useState<AuctionData | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -855,6 +860,8 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
 
   if (!data) return <main className="min-h-screen bg-slate-50 p-8">{error || "Loading auction…"}</main>;
 
+  const publicUrl = `${publicOrigin}/auction/${encodeURIComponent(data.tournament.slug)}`;
+
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-7 sm:px-8">
       <div className="mx-auto max-w-7xl">
@@ -863,16 +870,16 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">Auction control room</p>
             <h1 className="mt-1 text-3xl font-black text-slate-950">{data.tournament.name}</h1>
-            <p className="mt-1 text-sm text-slate-500">Public page: <Link className="font-bold text-orange-700" href={`/auction/${data.tournament.slug}`} target="_blank">/auction/{data.tournament.slug} ↗</Link></p>
+            <p className="mt-1 text-sm text-slate-500">Public page: <Link className="font-bold text-orange-700" href={publicUrl} target="_blank">{publicUrl} ↗</Link></p>
           </div>
           <span className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-black uppercase text-slate-700 shadow-sm">{data.tournament.status}</span>
         </header>
         <nav className="mt-5 flex flex-wrap gap-2">
           <Link href={`/admin/auctions/${slug}`} className={`rounded-lg border px-4 py-2 text-sm font-bold ${view === "setup" ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-300 bg-white text-slate-700"}`}>Tournament setup</Link>
           <Link href={`/admin/auctions/${slug}/run`} className={`rounded-lg border px-4 py-2 text-sm font-bold ${view === "run" ? "border-orange-300 bg-orange-50 text-orange-800" : "border-slate-300 bg-white text-slate-700"}`}>Run auction</Link>
-          <Link href={`/auction/${slug}`} target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Open viewer page ↗</Link>
-          <Link href={`/auction/${slug}/projector`} target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Open projector ↗</Link>
-          <Link href={`/auction/${slug}/overlay`} target="_blank" className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-bold text-orange-800">YouTube overlay ↗</Link>
+          <Link href={publicUrl} target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Open viewer page ↗</Link>
+          <Link href={`${publicUrl}/projector`} target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Open projector ↗</Link>
+          <Link href={`${publicUrl}/overlay`} target="_blank" className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-bold text-orange-800">YouTube overlay ↗</Link>
         </nav>
         {(error || message) && <p role={error ? "alert" : "status"} className={`mt-5 rounded-lg px-4 py-3 text-sm font-semibold ${error ? "bg-red-50 text-red-800" : "bg-green-50 text-green-800"}`}>{error || message}</p>}
 
