@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import TeamMark from "@/app/auction/TeamMark";
@@ -8,6 +8,7 @@ import SoldFireworks from "../sold-fireworks";
 import { sortSponsors } from "@/lib/auction/sponsors";
 import { getAuctionBasePrice, upsertAuctionCategory, type AuctionPriceCategory } from "@/lib/auction/pricing";
 import type { ProjectorPlayerField } from "@/lib/auction/projector-fields";
+import type { ProjectorTheme } from "@/lib/auction/projector-theme";
 import { supabase } from "@/lib/supabase/client";
 
 type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
@@ -20,7 +21,7 @@ type Sponsor = { id: string; name: string; sponsor_title: string | null; logo_ur
 type Tournament = {
   id: string; slug: string; name: string; status: string; points_per_team: number; base_price: number; min_squad_size: number; max_squad_size: number;
   current_player_id: string | null; current_bid: number | null; current_bid_team_id: string | null;
-  background_url: string | null; tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[];
+  background_url: string | null; tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[]; projector_theme: ProjectorTheme;
 };
 type Data = { tournament: Tournament; teams: Team[]; players: Player[]; categories: AuctionPriceCategory[]; sponsors: Sponsor[] };
 type Tab = "live" | "teams" | "players";
@@ -35,15 +36,29 @@ function maxBid(pointsRemaining: number, soldCount: number, minSquadSize: number
   return Math.max(0, pointsRemaining - reserve + rtmCount * basePrice);
 }
 
+function playerDetails(player: Player, fields: ProjectorPlayerField[], shouldDisplayCategory: boolean) {
+  const role = player.role?.trim() || (shouldDisplayCategory ? player.category.trim() : "");
+  return [
+    ...(fields.includes("skill") && role ? [{ label: "Player Role", value: role }] : []),
+    ...(fields.includes("batting_style") && player.batting_style?.trim() ? [{ label: "Batting style", value: player.batting_style.trim() }] : []),
+    ...(fields.includes("bowling_style") && player.bowling_style?.trim() ? [{ label: "Bowling style", value: player.bowling_style.trim() }] : []),
+    ...(fields.includes("previous_team") && player.previous_team?.trim() ? [{ label: "Previous team", value: player.previous_team.trim() }] : []),
+  ];
+}
+
 export default function AuctionProjector({ slug }: { slug: string }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<Tab>("live");
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | Player["status"]>("all");
+  const [filterCategory, setFilterCategory] = useState("");
   const [logoIndex, setLogoIndex] = useState(0);
   const [teamSummaryPage, setTeamSummaryPage] = useState(0);
   const [listPage, setListPage] = useState(0);
+  const playerListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -128,14 +143,20 @@ export default function AuctionProjector({ slug }: { slug: string }) {
   const filteredPlayers = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return (data?.players ?? []).filter((player) =>
-      !query || `${player.full_name} ${player.player_number} ${player.category} ${player.status}`.toLocaleLowerCase().includes(query)
+      (filterStatus === "all" || player.status === filterStatus)
+      && (!filterCategory || player.category.trim() === filterCategory)
+      && (!query || `${player.full_name} ${player.player_number} ${player.category} ${player.status}`.toLocaleLowerCase().includes(query))
     );
-  }, [data?.players, search]);
+  }, [data?.players, search, filterStatus, filterCategory]);
   const categoryValues = useMemo(
     () => Array.from(new Set((data?.players ?? []).map((player) => player.category.trim()).filter((value) => value && value.toUpperCase() !== "NONE"))),
     [data?.players]
   );
   const soldPlayers = useMemo(() => (data?.players ?? []).filter((player) => player.status === "sold"), [data?.players]);
+
+  function resetPlayerScroll() {
+    playerListRef.current?.scrollTo({ top: 0, behavior: "instant" });
+  }
 
   async function toggleFullscreen() {
     const projector = document.getElementById("auction-projector");
@@ -171,19 +192,15 @@ export default function AuctionProjector({ slug }: { slug: string }) {
   const summaryPageCount = Math.max(1, Math.ceil(teamSummaries.length / 4));
   const visibleTeamSummaries = teamSummaries.slice((teamSummaryPage % summaryPageCount) * 4, (teamSummaryPage % summaryPageCount) * 4 + 4);
   const shouldDisplayCategory = categoryValues.length > 1;
-  const roleValue = currentPlayer ? (currentPlayer.role?.trim() || (shouldDisplayCategory ? currentPlayer.category.trim() : "")) : "";
-  const detailCards = currentPlayer ? [
-    ...(tournament.projector_player_fields.includes("skill") && roleValue ? [{ label: "Skill", value: roleValue }] : []),
-    ...(tournament.projector_player_fields.includes("batting_style") && currentPlayer.batting_style?.trim() ? [{ label: "Batting style", value: currentPlayer.batting_style.trim() }] : []),
-    ...(tournament.projector_player_fields.includes("bowling_style") && currentPlayer.bowling_style?.trim() ? [{ label: "Bowling style", value: currentPlayer.bowling_style.trim() }] : []),
-    ...(tournament.projector_player_fields.includes("previous_team") && currentPlayer.previous_team?.trim() ? [{ label: "Previous team", value: currentPlayer.previous_team.trim() }] : []),
-  ] : [];
+  const detailCards = currentPlayer ? playerDetails(currentPlayer, tournament.projector_player_fields, shouldDisplayCategory) : [];
+  const selectedTeam = tab === "teams" ? teams.find((team) => team.id === selectedTeamId) : undefined;
+  const displayedPlayers = selectedTeam ? soldPlayers.filter((player) => player.sold_team_id === selectedTeam.id) : filteredPlayers;
+  const showingTeamList = tab === "teams" && !selectedTeam;
   const pageSize = tab === "teams" ? 6 : 12;
-  const pageItems = tab === "teams" ? teams : filteredPlayers;
-  const pageCount = Math.max(1, Math.ceil(pageItems.length / pageSize));
+  const pageCount = Math.max(1, Math.ceil((showingTeamList ? teams.length : displayedPlayers.length) / pageSize));
   const page = listPage % pageCount;
   const visibleTeams = teams.slice(page * pageSize, page * pageSize + pageSize);
-  const visiblePlayers = filteredPlayers.slice(page * pageSize, page * pageSize + pageSize);
+  const visiblePlayers = selectedTeam ? displayedPlayers.slice(page * pageSize, page * pageSize + pageSize) : displayedPlayers;
   const backgroundStyle = tournament.background_url
     ? { backgroundImage: `linear-gradient(rgba(7, 45, 80, 0.16), rgba(8, 60, 100, 0.24)), url("${tournament.background_url.replace(/["\\]/g, "")}")` }
     : undefined;
@@ -209,7 +226,44 @@ export default function AuctionProjector({ slug }: { slug: string }) {
         </header>
 
         <section className="min-h-0 flex-1 overflow-hidden rounded-none bg-transparent p-0 relative">
-          {tab === "live" && <div className="relative grid h-full min-h-0 grid-cols-[minmax(0,0.9fr)_minmax(0,0.95fr)_minmax(0,2.15fr)] items-stretch gap-3 p-3 sm:gap-4 sm:px-5 sm:pb-5">
+          {tab === "live" && tournament.projector_theme === "spotlight" && <div className="grid h-full min-h-0 grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)] items-center gap-3 bg-slate-950/25 p-3 sm:gap-5 sm:px-6">
+            {currentPlayer ? <section aria-label="Player profile" className="flex min-h-0 min-w-0 items-center gap-3 sm:gap-5">
+              <div className="relative shrink-0">
+                <div className="overflow-hidden rounded-full border-4 border-yellow-300 bg-slate-200 shadow-[0_0_24px_rgba(250,204,21,0.4)]">
+                  {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={480} height={480} className="h-[min(31dvh,22vw)] w-[min(31dvh,22vw)] object-cover" /> : <div className="grid h-[min(31dvh,22vw)] w-[min(31dvh,22vw)] place-items-center bg-slate-700 text-5xl">🏏</div>}
+                </div>
+                <span className="absolute left-0 top-0 rounded-full bg-yellow-300 px-2 py-1 text-sm font-black text-slate-950 shadow-md sm:text-lg">#{currentPlayer.player_number}</span>
+                {currentPlayer.rtm_team_id && <span className="absolute bottom-0 right-0 rounded-full bg-amber-400 px-2 py-1 text-xs font-black text-slate-950">RTM</span>}
+                {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="!left-1/2 !right-auto !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !px-3 !py-1 !text-lg sm:!text-2xl" />}
+              </div>
+              <div className="flex min-h-0 min-w-0 max-w-[30rem] flex-1 flex-col gap-1.5 sm:gap-2">
+                <h2 className="break-words rounded-r-xl bg-gradient-to-r from-sky-700/90 to-blue-900/90 px-3 py-2 text-base font-black uppercase leading-tight text-white sm:px-5 sm:text-2xl lg:text-3xl">{currentPlayer.full_name}</h2>
+                {detailCards.map((detail) => <div key={detail.label} className="min-w-0 rounded-r-lg bg-blue-900/75 px-3 py-1 text-white sm:px-5">
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-cyan-200 sm:text-xs">{detail.label}</p>
+                  <p className="break-words text-xs font-black uppercase leading-tight sm:text-base lg:text-lg">{detail.value}</p>
+                </div>)}
+              </div>
+            </section> : <section className="text-center">
+              <p className="text-sm font-black uppercase tracking-wider text-yellow-300">{tournament.status === "completed" ? "Auction completed" : "Waiting for next player"}</p>
+              <h2 className="mt-3 text-2xl font-black sm:text-4xl">{tournament.status === "completed" ? "Thank you!" : "Get ready"}</h2>
+            </section>}
+            <aside className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-2 text-center">
+              {activeTeam ? <>
+                <p className="text-xs font-black uppercase tracking-wider text-white/75">Bidding team</p>
+                <TeamMark name={activeTeam.name} logoUrl={activeTeam.logo_url} size="lg" />
+                <h2 className="line-clamp-2 text-sm font-black uppercase text-white sm:text-xl">{activeTeam.name}</h2>
+              </> : <p className="text-sm font-bold text-white/75">Waiting for the first bid</p>}
+              {currentPlayer && <div className="w-full rounded-lg bg-slate-950/55 px-2 py-2">
+                <p className="text-xs font-bold uppercase tracking-wider text-white/75">{currentPlayer.status === "sold" ? "Sold for" : currentPlayer.status === "unsold" ? "Auction result" : "Player bid"}</p>
+                <p className="break-words text-2xl font-black leading-tight text-yellow-300 sm:text-4xl lg:text-5xl">{currentPlayer.status === "sold" ? points(currentPlayer.sold_price) : currentPlayer.status === "unsold" ? "UNSOLD" : points(tournament.current_bid ?? getAuctionBasePrice(currentPlayer, categories, tournament.base_price))}</p>
+              </div>}
+              {activeTeam && <p className="rounded-md bg-blue-900/80 px-3 py-1 text-xs font-bold uppercase text-white sm:text-sm">Max bid <span className="text-yellow-300">{points(maxBid(activeTeam.points_remaining, activeTeamRoster, tournament.min_squad_size, tournament.base_price, activeTeam.rtm_count ?? 0))}</span></p>}
+              <div className="flex flex-wrap justify-center gap-1 text-[10px] font-bold uppercase sm:text-xs">
+                {([["Sold", soldPlayers.length, "bg-emerald-700"], ["Unsold", players.filter((player) => player.status === "unsold").length, "bg-rose-700"], ["Available", players.filter((player) => player.status === "available").length, "bg-amber-700"]] as const).map(([label, count, color]) => <span key={label} className={`${color} rounded px-2 py-1`}>{label} {count}</span>)}
+              </div>
+            </aside>
+          </div>}
+          {tab === "live" && tournament.projector_theme === "classic" && <div className="relative grid h-full min-h-0 grid-cols-[minmax(0,0.9fr)_minmax(0,0.95fr)_minmax(0,2.15fr)] items-stretch gap-3 p-3 sm:gap-4 sm:px-5 sm:pb-5">
             <aside className="flex min-h-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-blue-900/30 p-3 text-center shadow-[0_0_18px_rgba(125,211,252,0.2)] sm:p-5">
               <p className="rounded-md bg-sky-600/65 px-4 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white sm:text-sm">Bidding team</p>
               {activeTeam ? <>
@@ -277,34 +331,60 @@ export default function AuctionProjector({ slug }: { slug: string }) {
             {currentPlayer && currentPlayer.status !== "available" && <div className="pointer-events-none absolute left-[30%] top-1/2 z-30 -translate-x-1/2 -translate-y-1/2"><AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="!right-auto !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2" /></div>}
           </div>}
 
-          {tab === "teams" && <div className="flex h-full min-h-0 flex-col">
+          {showingTeamList && <div className="flex h-full min-h-0 flex-col">
             <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2 xl:grid-cols-3">
               {visibleTeams.map((team) => {
                 const roster = soldPlayers.filter((player) => player.sold_team_id === team.id);
                 const spent = tournament.points_per_team - team.points_remaining;
                 const currentMax = maxBid(team.points_remaining, roster.length, tournament.min_squad_size, tournament.base_price, team.rtm_count ?? 0);
-                return <article key={team.id} className="flex min-h-0 items-center gap-3 overflow-hidden rounded-[1rem] bg-slate-950/20 p-3 backdrop-blur-[1px] sm:gap-4 sm:p-4">
+                return <button type="button" key={team.id} aria-label={`View ${team.name} squad`} onClick={() => { setSelectedTeamId(team.id); setListPage(0); }} className="flex min-h-0 items-center gap-3 overflow-hidden rounded-[1rem] bg-slate-950/20 p-3 text-left backdrop-blur-[1px] transition hover:bg-slate-950/40 focus-visible:outline-2 focus-visible:outline-yellow-300 sm:gap-4 sm:p-4">
                   <TeamMark name={team.name} logoUrl={team.logo_url} size="md" />
-                  <div className="min-w-0 flex-1"><h2 className="truncate text-sm font-black uppercase sm:text-xl">{team.name}</h2><p className="mt-1 text-xs text-white/70 sm:text-sm">{roster.length} players</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Spent {points(spent)}</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Max {points(currentMax)}</p></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-black uppercase sm:text-xl">{team.name}</p><p className="mt-1 text-xs text-white/70 sm:text-sm">{roster.length} players</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Spent {points(spent)}</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Max {points(currentMax)}</p></div>
                   <div className="text-right"><p className="text-lg font-black text-orange-300 sm:text-2xl">{points(team.points_remaining)}</p></div>
-                </article>;
+                </button>;
               })}
             </div>
             {pageCount > 1 && <div className="flex shrink-0 items-center justify-center gap-4 pt-2"><button onClick={() => setListPage((page) => (page - 1 + pageCount) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">←</button><span className="text-xs font-bold">Page {page + 1} / {pageCount}</span><button onClick={() => setListPage((page) => (page + 1) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">→</button></div>}
           </div>}
 
-          {tab === "players" && <div className="flex h-full min-h-0 flex-col">
-            <div className="mb-2 flex shrink-0 items-center justify-between gap-2"><div><h2 className="text-xl font-black sm:text-3xl">Players</h2><p className="text-xs text-white/70">{filteredPlayers.length} players</p></div><input value={search} onChange={(event) => { setSearch(event.target.value); setListPage(0); }} placeholder="Search players…" className="h-9 w-full max-w-xs rounded-lg bg-slate-950/40 px-3 text-sm text-white outline-none placeholder:text-white/50" /></div>
-            <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2 xl:grid-cols-4">
+          {(tab === "players" || selectedTeam) && <div className="flex h-full min-h-0 flex-col">
+            <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-3">
+                {selectedTeam && <button type="button" onClick={() => { setSelectedTeamId(null); setListPage(0); }} className="shrink-0 rounded-lg bg-white/15 px-3 py-2 text-xs font-bold hover:bg-white/25">← Back to teams</button>}
+                {selectedTeam && <TeamMark name={selectedTeam.name} logoUrl={selectedTeam.logo_url} size="sm" />}
+                <div className="min-w-0"><h2 className="truncate text-xl font-black sm:text-3xl">{selectedTeam ? `${selectedTeam.name} squad` : "Players"}</h2><p className="text-xs text-white/70">{selectedTeam ? `${displayedPlayers.length} players · Balance ${points(selectedTeam.points_remaining)} pts` : `Showing ${displayedPlayers.length} of ${players.length} players`}</p></div>
+              </div>
+            </div>
+            {!selectedTeam && <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2 rounded-xl bg-blue-900/50 p-2">
+              {([["all", "All"], ["sold", "Sold"], ["unsold", "Unsold"], ["available", "Avl"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filterStatus === value} onClick={() => { setFilterStatus(value); resetPlayerScroll(); }} className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase sm:text-xs ${filterStatus === value ? "bg-yellow-400 text-slate-950" : "bg-slate-950/35 text-white hover:bg-slate-950/55"}`}>{label}</button>)}
+              <select aria-label="Filter players by category" value={filterCategory} onChange={(event) => { setFilterCategory(event.target.value); resetPlayerScroll(); }} className="h-8 max-w-48 rounded-full bg-slate-950/55 px-3 text-xs font-bold text-white">
+                <option value="">All categories</option>
+                {categoryValues.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+              <input value={search} onChange={(event) => { setSearch(event.target.value); resetPlayerScroll(); }} placeholder="Search players…" aria-label="Search players" className="h-8 min-w-28 flex-1 rounded-full bg-slate-950/35 px-3 text-xs text-white outline-none placeholder:text-white/60" />
+            </div>}
+            {selectedTeam && displayedPlayers.length === 0 && <p className="mt-4 text-sm text-white/75">No players in this squad yet.</p>}
+            <div id={selectedTeam ? undefined : "projector-player-list"} ref={selectedTeam ? undefined : playerListRef} role={selectedTeam ? undefined : "region"} aria-label={selectedTeam ? undefined : "Player list"} tabIndex={selectedTeam ? undefined : 0} className={`grid min-h-0 flex-1 grid-cols-2 gap-2 ${selectedTeam ? "auto-rows-fr sm:grid-cols-3" : "auto-rows-[minmax(6rem,auto)] content-start overflow-y-auto xl:grid-cols-4"}`}>
               {visiblePlayers.map((player) => {
+                if (selectedTeam) return <article key={player.id} className="relative flex min-h-0 max-h-60 items-center gap-3 overflow-hidden rounded-xl border border-white/20 bg-slate-950/55 p-3 shadow-lg backdrop-blur-sm sm:gap-4">
+                  <span className="absolute left-1 top-1 z-10 rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-black text-white shadow-md sm:text-xs">#{player.player_number}</span>
+                  {player.photo_url ? <AuctionImage src={player.photo_url} alt={player.full_name} width={160} height={160} className="h-20 w-20 shrink-0 rounded-lg border-2 border-white/40 object-cover sm:h-[min(16dvh,8vw,128px)] sm:w-[min(16dvh,8vw,128px)]" /> : <span className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border-2 border-white/30 bg-white/10 text-3xl sm:h-[min(16dvh,8vw,128px)] sm:w-[min(16dvh,8vw,128px)]">🏏</span>}
+                  <div className="min-w-0">
+                    <h3 className="line-clamp-2 text-sm font-black uppercase leading-tight sm:text-lg">{player.full_name}</h3>
+                    <p className="mt-1 text-xs font-bold uppercase text-white/75">Points: <span className="text-base font-black text-cyan-300">{points(player.sold_price)}</span></p>
+                    <div className="mt-1 text-[10px] font-bold uppercase leading-snug text-white/90 sm:text-xs">
+                      {playerDetails(player, tournament.projector_player_fields, shouldDisplayCategory).map((detail) => <p key={detail.label} className="truncate" title={`${detail.label}: ${detail.value}`}><span className="sr-only">{detail.label}: </span>{detail.value}</p>)}
+                    </div>
+                  </div>
+                </article>;
                 const buyer = teams.find((team) => team.id === player.sold_team_id);
-                return <article key={player.id} className="flex min-h-0 items-center gap-2 overflow-hidden rounded-[0.9rem] bg-slate-950/20 p-2 backdrop-blur-[1px] sm:gap-3 sm:p-3">
+                return <article key={player.id} className={`flex min-h-0 items-center gap-2 overflow-hidden rounded-[0.9rem] border p-2 backdrop-blur-[1px] sm:gap-3 sm:p-3 ${player.status === "sold" ? "border-green-400/60 bg-gradient-to-r from-green-900/80 to-slate-900/75" : player.status === "unsold" ? "border-red-300/70 bg-gradient-to-r from-red-900/75 to-slate-900/75" : "border-white/30 bg-slate-950/55"}`}>
                   {player.photo_url ? <AuctionImage src={player.photo_url} alt="" width={64} height={64} className="h-10 w-10 shrink-0 rounded-lg object-cover sm:h-14 sm:w-14" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10 text-lg sm:h-14 sm:w-14 sm:text-xl">🏏</span>}
-                  <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-1"><p className="truncate text-xs font-black sm:text-base">{player.full_name}</p><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase sm:text-[10px] ${player.status === "sold" ? "bg-green-500 text-white" : player.status === "unsold" ? "bg-slate-500 text-white" : "bg-amber-300 text-slate-950"}`}>{player.status}</span></div><p className="truncate text-[10px] text-white/70 sm:text-xs">#{player.player_number}{shouldDisplayCategory ? ` · ${player.category}` : ""}</p><p className="truncate text-[9px] font-bold text-orange-200 sm:text-xs">{buyer ? `${buyer.name} · ${points(player.sold_price)} pts` : "—"}</p></div>
+                  <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-1"><p className="truncate text-xs font-black sm:text-base">{player.full_name}</p><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase sm:text-[10px] ${player.status === "sold" ? "bg-green-500 text-white" : player.status === "unsold" ? "bg-red-400 text-red-950" : "bg-slate-300 text-slate-900"}`}>{player.status}</span></div><p className="truncate text-[10px] text-white/70 sm:text-xs">#{player.player_number}{shouldDisplayCategory ? ` · ${player.category}` : ""}</p><p className="truncate text-[9px] font-bold text-orange-200 sm:text-xs">{buyer ? `${buyer.name} · ${points(player.sold_price)} pts` : "—"}</p></div>
                 </article>;
               })}
             </div>
-            {pageCount > 1 && <div className="flex shrink-0 items-center justify-center gap-4 pt-2"><button onClick={() => setListPage((page) => (page - 1 + pageCount) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">←</button><span className="text-xs font-bold">Page {page + 1} / {pageCount}</span><button onClick={() => setListPage((page) => (page + 1) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">→</button></div>}
+            {selectedTeam && pageCount > 1 && <div className="flex shrink-0 items-center justify-center gap-4 pt-2"><button onClick={() => setListPage((page) => (page - 1 + pageCount) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">←</button><span className="text-xs font-bold">Page {page + 1} / {pageCount}</span><button onClick={() => setListPage((page) => (page + 1) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">→</button></div>}
           </div>}
         </section>
         <footer className="flex h-[14dvh] min-h-[88px] max-h-[140px] shrink-0 items-center gap-3 bg-gradient-to-r from-blue-950/55 via-blue-900/45 to-sky-900/40 px-3 shadow-[0_-8px_24px_rgba(56,189,248,0.2)] sm:gap-5 sm:px-6">
@@ -314,7 +394,7 @@ export default function AuctionProjector({ slug }: { slug: string }) {
               ["teams", "T"],
               ["players", "P"],
               ["fullscreen", "F"],
-            ] as const).map(([key, label]) => <button key={key} onClick={() => { if (key === "fullscreen") { void toggleFullscreen(); return; } setTab(key); setListPage(0); }} aria-label={key === "live" ? "Live auction" : key === "teams" ? "Teams" : key === "players" ? "Players" : "Fullscreen"} className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black uppercase transition sm:h-10 sm:w-10 ${key === "fullscreen" ? "bg-orange-400 text-slate-950 shadow-none" : tab === key ? "bg-orange-400 text-slate-950 shadow-none" : "bg-slate-800/70 text-white/90 hover:bg-slate-700"}`}>{label}</button>)}
+            ] as const).map(([key, label]) => <button key={key} onClick={() => { if (key === "fullscreen") { void toggleFullscreen(); return; } setTab(key); setSelectedTeamId(null); setListPage(0); }} aria-label={key === "live" ? "Live auction" : key === "teams" ? "Teams" : key === "players" ? "Players" : "Fullscreen"} className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black uppercase transition sm:h-10 sm:w-10 ${key === "fullscreen" ? "bg-orange-400 text-slate-950 shadow-none" : tab === key ? "bg-orange-400 text-slate-950 shadow-none" : "bg-slate-800/70 text-white/90 hover:bg-slate-700"}`}>{label}</button>)}
           </nav>
           <section aria-label="Auction summary" className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">

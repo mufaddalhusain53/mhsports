@@ -9,6 +9,7 @@ import TeamMark from "@/app/auction/TeamMark";
 import { sortSponsors } from "@/lib/auction/sponsors";
 import { getAuctionBasePrice, upsertAuctionCategory } from "@/lib/auction/pricing";
 import { PROJECTOR_PLAYER_FIELDS, type ProjectorPlayerField } from "@/lib/auction/projector-fields";
+import type { ProjectorTheme } from "@/lib/auction/projector-theme";
 import { supabase } from "@/lib/supabase/client";
 
 type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
@@ -24,7 +25,7 @@ type Tournament = {
   id: string; slug: string; name: string; status: string; auction_mode: "trial" | "live"; scheduled_date: string | null; rtm_enabled: boolean; points_per_team: number; base_price: number;
   bid_increment: number; bid_increment_rules: IncrementRule[]; min_squad_size: number; max_squad_size: number; current_player_id: string | null;
   current_bid: number | null; current_bid_team_id: string | null; background_url: string | null;
-  tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[];
+  tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[]; projector_theme: ProjectorTheme;
 };
 type AuctionData = { tournament: Tournament; teams: Team[]; players: Player[]; sponsors: Sponsor[]; categories: AuctionCategory[] };
 type PlayerFormData = Omit<Player, "category_id" | "status" | "sold_team_id" | "sold_price" | "rtm_team_id">;
@@ -87,6 +88,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [scheduledDate, setScheduledDate] = useState("");
   const [rtmEnabled, setRtmEnabled] = useState(true);
   const [projectorFields, setProjectorFields] = useState<ProjectorPlayerField[]>(() => PROJECTOR_PLAYER_FIELDS.map((field) => field.id));
+  const [projectorTheme, setProjectorTheme] = useState<ProjectorTheme>("classic");
   const [setupTab, setSetupTab] = useState<SetupTab>("overview");
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorTitle, setSponsorTitle] = useState("");
@@ -131,6 +133,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     setScheduledDate(result.tournament.scheduled_date ?? "");
     setRtmEnabled(result.tournament.rtm_enabled);
     setProjectorFields(result.tournament.projector_player_fields);
+    setProjectorTheme(result.tournament.projector_theme);
     setIncrementRules(incrementRulesFor(result.tournament));
   }, [slug]);
 
@@ -149,6 +152,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           setScheduledDate(result.tournament.scheduled_date ?? "");
           setRtmEnabled(result.tournament.rtm_enabled);
           setProjectorFields(result.tournament.projector_player_fields);
+          setProjectorTheme(result.tournament.projector_theme);
           setIncrementRules(incrementRulesFor(result.tournament));
         }
       })
@@ -921,8 +925,21 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           </div>
         </section>
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-black text-slate-900">Projector theme</h2>
+          <p className="mt-1 text-sm text-slate-600">Choose the live projector layout. Both themes keep tournament branding and the team summary.</p>
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="block text-xs font-bold text-slate-600">Theme
+              <select value={projectorTheme} onChange={(event) => setProjectorTheme(event.target.value === "spotlight" ? "spotlight" : "classic")} className={inputClass} disabled={busy}>
+                <option value="classic">Theme 1 - Classic</option>
+                <option value="spotlight">Theme 2 - Spotlight</option>
+              </select>
+            </label>
+            <button type="button" className={buttonClass} disabled={busy} onClick={() => void action({ action: "projector_theme", theme: projectorTheme })}>Save projector theme</button>
+          </div>
+        </section>
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-black text-slate-900">Player Detail Fields</h2>
-          <p className="mt-1 text-sm text-slate-600">Choose which details appear in the projector player profile. The player name always remains visible.</p>
+          <p className="mt-1 text-sm text-slate-600">Choose which details appear on the projector and viewer pages. The player name always remains visible.</p>
           <fieldset className="mt-4 flex flex-wrap gap-x-6 gap-y-3" disabled={busy}>
             <legend className="sr-only">Projector player detail fields</legend>
             {PROJECTOR_PLAYER_FIELDS.map((field) => <label key={field.id} className="flex items-center gap-2 text-sm font-bold text-slate-700">

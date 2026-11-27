@@ -9,6 +9,10 @@ const fieldsSource = readFileSync(new URL("../../../../../lib/auction/projector-
 const fieldsCompiled = ts.transpileModule(fieldsSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
 const fieldsExports = {};
 new Function("exports", fieldsCompiled)(fieldsExports);
+const themeSource = readFileSync(new URL("../../../../../lib/auction/projector-theme.ts", import.meta.url), "utf8");
+const themeCompiled = ts.transpileModule(themeSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+const themeExports = {};
+new Function("exports", themeCompiled)(themeExports);
 
 function createHandler({ authenticated = true, updateError = null, updated = true } = {}) {
   const updates = [];
@@ -16,6 +20,7 @@ function createHandler({ authenticated = true, updateError = null, updated = tru
     "next/server": { NextResponse: Response },
     "@/lib/admin/auth": { isAdminAuthenticated: async () => authenticated },
     "@/lib/auction/projector-fields": fieldsExports,
+    "@/lib/auction/projector-theme": themeExports,
     "@/lib/supabase/admin": {
       supabaseAdmin: {
         from: (table) => {
@@ -111,4 +116,33 @@ test("projector player fields report database failures", async () => {
   assert.match((await response.json()).error, /database unavailable/);
   assert.equal((await createHandler({ updated: false }).PATCH(makeRequest(), context)).status, 404);
   assert.equal((await createHandler({ authenticated: false }).PATCH(makeRequest(), context)).status, 401);
+});
+
+test("projector theme saves either valid theme and rejects other values", async () => {
+  const handler = createHandler();
+  const makeRequest = (theme) => new Request("http://localhost/api/admin/auctions/test", {
+    method: "PATCH",
+    body: JSON.stringify({ action: "projector_theme", theme }),
+  });
+  for (const theme of ["classic", "spotlight"]) {
+    assert.equal((await handler.PATCH(makeRequest(theme), context)).status, 200);
+    assert.equal(handler.updates.at(-1).values.projector_theme, theme);
+    assert.equal(handler.updates.at(-1).id, "tournament-1");
+  }
+  for (const theme of ["other", "", null]) {
+    assert.equal((await handler.PATCH(makeRequest(theme), context)).status, 400);
+  }
+  assert.equal(handler.updates.length, 2);
+});
+
+test("projector theme reports authentication and database errors", async () => {
+  const makeRequest = () => new Request("http://localhost/api/admin/auctions/test", {
+    method: "PATCH",
+    body: JSON.stringify({ action: "projector_theme", theme: "spotlight" }),
+  });
+  assert.equal((await createHandler({ authenticated: false }).PATCH(makeRequest(), context)).status, 401);
+  const response = await createHandler({ updateError: { message: "database unavailable" } }).PATCH(makeRequest(), context);
+  assert.equal(response.status, 500);
+  assert.match((await response.json()).error, /database unavailable/);
+  assert.equal((await createHandler({ updated: false }).PATCH(makeRequest(), context)).status, 404);
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminAuthenticated, verifyAdminPin } from "@/lib/admin/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { isProjectorPlayerFields, type ProjectorPlayerField } from "@/lib/auction/projector-fields";
+import { isProjectorTheme, type ProjectorTheme } from "@/lib/auction/projector-theme";
 
 type Context = { params: Promise<{ slug: string }> };
 type AuctionAction =
@@ -20,6 +21,7 @@ type AuctionAction =
   | { action: "schedule"; scheduledDate: string | null }
   | { action: "rtm_visibility"; enabled: boolean }
   | { action: "projector_player_fields"; fields: ProjectorPlayerField[] }
+  | { action: "projector_theme"; theme: ProjectorTheme }
   | { action: "tournament_name"; name: string }
   | { action: "presentation"; tournamentLogoUrl: string | null; organizerLogoUrls: string[] }
   | { action: "set_mode"; mode: "trial" | "live"; adminPin?: string }
@@ -596,6 +598,19 @@ export async function PATCH(request: Request, { params }: Context) {
         .select("id")
         .maybeSingle();
       if (error) return NextResponse.json({ error: `Unable to save RTM setting: ${error.message}` }, { status: 500 });
+      if (!data) return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
+      break;
+    }
+    case "projector_theme": {
+      if (!isProjectorTheme(action.theme)) {
+        return NextResponse.json({ error: "Choose a valid projector theme." }, { status: 400 });
+      }
+      const { data, error } = await supabaseAdmin.from("auction_tournaments")
+        .update({ projector_theme: action.theme, updated_at: new Date().toISOString() })
+        .eq("id", tournament.id)
+        .select("id")
+        .maybeSingle();
+      if (error) return NextResponse.json({ error: `Unable to save projector theme: ${error.message}` }, { status: 500 });
       if (!data) return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
       break;
     }

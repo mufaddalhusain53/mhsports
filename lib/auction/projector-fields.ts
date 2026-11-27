@@ -1,5 +1,5 @@
 export const PROJECTOR_PLAYER_FIELDS = [
-  { id: "skill", label: "Skill" },
+  { id: "skill", label: "Player Role" },
   { id: "batting_style", label: "Batting style" },
   { id: "bowling_style", label: "Bowling style" },
   { id: "previous_team", label: "Previous team" },

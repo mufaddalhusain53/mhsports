@@ -85,6 +85,21 @@ body {
   }
 }
 
+#projector-player-list {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#projector-player-list::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #projector-player-list {
+    scroll-behavior: smooth;
+  }
+}
+
 body:has(.youtube-auction-overlay) {
   background: transparent;
   overflow: hidden;

@@ -12,6 +12,7 @@ Run these migrations in order in the Supabase SQL Editor:
 6. Apply `supabase/migrations/202611270001_auction_rtm_visibility.sql` before deploying the RTM visibility setting.
 7. Apply `supabase/migrations/202611270002_auction_category_realtime.sql` to enable live updates of category opening prices.
 8. Apply `supabase/migrations/202611270003_projector_player_fields.sql` before deploying projector profile field settings.
+9. Apply `supabase/migrations/202611270004_projector_theme.sql` before deploying projector theme settings.
 
 Together, they create the auction tables, category-specific opening prices and per-team minimum/maximum player limits, read-only public policies, atomic bid/sale functions, the public image bucket, Realtime publication entries, tournament background and presentation-logo settings, live-console operations for skipping and re-auctioning players, persistent current-player sold/unsold results, and an index for per-bid team roster validation. Existing player categories are backfilled with the tournament's current base price and maximum squad size.
 
@@ -21,7 +22,7 @@ The app uses the existing Supabase URL and server-side `SUPABASE_SECRET_KEY` con
 
 1. Sign in at `/admin` and open **Live Auctions → Auction Hosting**.
 2. Create a tournament. The generated slug is the public URL, for example `/auction/quadclash-season-2`.
-3. Use the **Overview** tab to set the optional auction date, whether RTM is shown to viewers, and the fields displayed in the projector player profile. Turning RTM off hides its counts and result labels on viewer pages; it does not change auction rules or team RTM counts. Before the auction starts, the viewer page displays “Auction scheduled for [date]”. Configure each team's starting points, player base price, bid increment, and squad-size limits in **Categories & Rules**.
+3. Use the **Overview** tab to set the optional auction date, whether RTM is shown to viewers, the projector theme, and which player detail fields are displayed on the projector and viewer pages. Theme 1 is the existing layout; Theme 2 is a spotlight layout. Turning RTM off hides its counts and result labels on viewer pages; it does not change auction rules or team RTM counts. Before the auction starts, the viewer page displays “Auction scheduled for [date]”. Configure each team's starting points, player base price, bid increment, and squad-size limits in **Categories & Rules**.
 4. Add at least two teams and import player data whose Category values match the configured category names before starting the auction.
 5. Optionally add sponsors and upload team/sponsor logos.
 6. Use **Branding** to optionally set a background and configure the projector's tournament logo and organizer-logo rotation.
@@ -44,7 +45,7 @@ Player number is the matching key within a tournament. Uploading a number that a
 - `/auction/{tournament-slug}/summary` shows team budgets and points.
 - `/auction/{tournament-slug}/players` filters the player list by status and category.
 - `/auction/{tournament-slug}/{team-slug}` shows an individual team's budget and purchased players.
-- `/auction/{tournament-slug}/projector` is the fullscreen projector display with Live, Teams, and Players tabs. It has no site header or footer and uses a fixed viewport with pagination instead of page scrolling.
+- `/auction/{tournament-slug}/projector` is the fullscreen projector display with Live, Teams, and Players tabs. Select a team on the Teams tab to view its squad. It has no site header or footer; the Players list can be searched and filtered by status or category and scrolls within the fixed viewport, while teams and squads use pagination.
 - `/auction/{tournament-slug}/overlay` is a transparent live-stream overlay styled with a player-details card, centered shield portrait, and team/player-count/points table. Add this URL as an OBS Browser Source (1920 × 1080) and place it above the video source; the graphic is anchored near the bottom and updates live.
 
 Public and projector pages use the background configured in admin and subscribe to Supabase Realtime for immediate auction and team updates. Teams without uploaded logos display an initials-based team mark. The projector rotates organizer logos on the left and sponsor logos on the right, with the tournament logo and name in the center.
