@@ -76,8 +76,8 @@ test("colored status counts become accessible filters only on the player screen"
     assert.match(overview, new RegExp(`<span aria-label="${label}: 1"`));
     assert.doesNotMatch(overview, new RegExp(`aria-label="${label} players: 1"`));
     const visibleLabel = label === "Available" ? "Avl" : label;
-    assert.match(html, new RegExp(`>${visibleLabel}<span class="sm:hidden">·</span><span class="hidden sm:inline"> · </span>1</button>`));
-    assert.match(overview, new RegExp(`>${visibleLabel}<span class="sm:hidden">·</span><span class="hidden sm:inline"> · </span>1</span>`));
+    assert.match(html, new RegExp(`>${visibleLabel}<span class="mx-0.5 sm:hidden">·</span><span class="hidden sm:inline"> · </span>1</button>`));
+    assert.match(overview, new RegExp(`>${visibleLabel}<span class="mx-0.5 sm:hidden">·</span><span class="hidden sm:inline"> · </span>1</span>`));
   }
   assert.match(html, /aria-label="All players: 3" aria-pressed="false"[^>]*bg-slate-500[^>]*>All<span[^>]*>·<\/span><span[^>]*> · <\/span>3<\/button>/);
   assert.match(overview, /<span aria-label="All players: 3"[^>]*bg-slate-500[^>]*>All<span[^>]*>·<\/span><span[^>]*> · <\/span>3<\/span>/);
