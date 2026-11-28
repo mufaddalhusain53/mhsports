@@ -74,6 +74,15 @@ for (const status of ["setup", "live"]) {
   });
 }
 
+test("auction header omits the public URL while retaining viewer and sharing controls", () => {
+  for (const view of ["setup", "run"]) {
+    const html = renderSetup("live", "overview", { view });
+    assert.doesNotMatch(html, /Public page:/);
+    assert.match(html, /href="[^"]*\/auction\/test"[^>]*>Viewer ↗<\/a>/);
+    assert.match(html, /aria-label="Copy viewer URL"/);
+  }
+});
+
 test("overview offers the viewer squad view setting", () => {
   const html = renderSetup("setup", "overview");
   assert.match(html, /Viewer squad view/);

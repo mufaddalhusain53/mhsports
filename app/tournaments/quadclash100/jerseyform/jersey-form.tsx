@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
 import { jerseyOptions, jerseySizes, jerseyTeams } from "@/lib/jersey-options";
 
-const fieldClass = "mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-3 font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100";
+const fieldClass = "mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-3 font-normal outline-none transition focus:border-fuchsia-500 focus:bg-white focus:ring-2 focus:ring-fuchsia-100";
 
 type Payment = {
   status: "free" | "pending" | "paid" | "not_collected";
@@ -16,7 +16,7 @@ type Payment = {
 function PaymentQr() {
   return <>
     <Image src="/quadclash100/jersey-payment-qr.jpg?v=2" alt="PhonePe payment QR code" width={838} height={702} unoptimized className="h-auto w-full max-w-sm rounded-xl border border-slate-200 bg-white" />
-    <a href="/quadclash100/jersey-payment-qr.jpg?v=2" download className="block text-sm font-bold text-orange-700 underline">Download QR code</a>
+    <a href="/quadclash100/jersey-payment-qr.jpg?v=2" download className="block text-sm font-bold text-fuchsia-800 underline">Download QR code</a>
   </>;
 }
 
@@ -95,23 +95,25 @@ export default function JerseyForm() {
   }
 
   if (formEnabled !== true && !requestId) {
-    return <section className="mt-6 rounded-2xl border border-orange-200 bg-white p-6 shadow-sm sm:p-8">
+    return <section className="mt-6 rounded-3xl border border-fuchsia-100 bg-white p-5 shadow-lg shadow-slate-900/5 sm:p-8">
+      <p className="mb-2 text-xs font-black uppercase tracking-widest text-fuchsia-700">Jersey registration</p>
       <h2 className="text-xl font-black text-slate-900">{formEnabled === false ? "Jersey form closed" : "Jersey form unavailable"}</h2>
       <p className="mt-3 text-slate-600">{formEnabled === false ? "New jersey requests are currently closed." : message || "Checking jersey form status..."}</p>
     </section>;
   }
 
   const selected = jerseyOptions.find((item) => item.value === option);
-  return <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-    <h2 className="text-2xl font-black">Jersey Charge Details</h2>
-    <ul className="mt-2 space-y-1 text-sm text-slate-600">
-      <li>Half Sleeves jersey will be provided.</li>
-      <li>Full Sleeves - ₹150</li>
-      <li>Extra Half Sleeves - ₹500</li>
-      <li>Extra Full Sleeves - ₹650</li>
+  return <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5 sm:p-8">
+    <p className="text-xs font-black uppercase tracking-widest text-fuchsia-700">Season 2 kit</p>
+    <h2 className="mt-1 text-2xl font-black">Jersey Charge Details</h2>
+    <ul className="mt-4 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+      <li className="rounded-xl bg-fuchsia-50 px-4 py-3 font-semibold">Half Sleeves jersey will be provided.</li>
+      <li className="rounded-xl bg-slate-50 px-4 py-3 font-semibold">Full Sleeves - ₹150</li>
+      <li className="rounded-xl bg-slate-50 px-4 py-3 font-semibold">Extra Half Sleeves - ₹500</li>
+      <li className="rounded-xl bg-slate-50 px-4 py-3 font-semibold">Extra Full Sleeves - ₹650</li>
     </ul>
-    <p className="mt-1 text-sm text-slate-600">Paid options require QR payment and organizer verification before the request is confirmed.</p>
-    {requestId && <div className="mt-5 space-y-3 rounded-xl bg-orange-50 p-4" aria-live="polite">
+    <p className="mt-4 text-sm leading-6 text-slate-600">Paid options require QR payment and organizer verification before the request is confirmed.</p>
+    {requestId && <div className="mt-5 space-y-3 rounded-2xl border border-fuchsia-100 bg-fuchsia-50 p-4" aria-live="polite">
       {payment?.status === "free" && <p className="font-bold text-emerald-700">Jersey details submitted successfully. No payment is required.</p>}
       {payment?.status === "paid" && <p className="font-bold text-emerald-700">Payment confirmed. Your jersey request is complete.</p>}
       {payment?.status === "not_collected" && <p className="font-bold text-slate-700">This earlier request did not collect payment online.</p>}
@@ -126,7 +128,7 @@ export default function JerseyForm() {
       </div>}
       {(!payment || payment.status === "pending") && <>
         <p className="text-sm text-slate-600">Save this page link to return and check your payment. Do not submit a second request.</p>
-        <button type="button" disabled={busy} onClick={() => void loadPayment(requestId)} className="rounded-xl border border-orange-500 px-4 py-2 text-sm font-bold text-orange-700 disabled:opacity-50">{busy ? "Checking..." : "Check payment status"}</button>
+        <button type="button" disabled={busy} onClick={() => void loadPayment(requestId)} className="rounded-xl border border-fuchsia-500 px-4 py-2 text-sm font-bold text-fuchsia-800 disabled:opacity-50">{busy ? "Checking..." : "Check payment status"}</button>
       </>}
       {payment && payment.status !== "pending" && formEnabled === true && <button type="button" onClick={() => {
         const url = new URL(window.location.href);
@@ -135,24 +137,28 @@ export default function JerseyForm() {
         setRequestId(null);
         setPayment(null);
         setOption("");
-      }} className="block rounded-xl border border-orange-500 px-4 py-2 text-sm font-bold text-orange-700">Submit another request</button>}
+      }} className="block rounded-xl border border-fuchsia-500 px-4 py-2 text-sm font-bold text-fuchsia-800">Submit another request</button>}
     </div>}
     {message && <p role="alert" className="mt-4 text-sm font-semibold text-red-700">{message}</p>}
     <form key={requestId ?? "new"} onSubmit={submit} className="mt-6 space-y-5">
       <fieldset disabled={busy || !!requestId || formEnabled !== true} className="space-y-5 disabled:opacity-60">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="border-t border-slate-100 pt-6">
+        <h3 className="text-xl font-black text-slate-900">Your jersey details</h3>
+        <p className="mt-1 text-sm text-slate-600">All fields are required.</p>
+      </div>
+      <div className="grid gap-5 sm:grid-cols-2">
         <label className="block text-sm font-bold text-slate-700">Player Name<input name="player_name" required maxLength={100} className={fieldClass} /></label>
         <label className="block text-sm font-bold text-slate-700">Name on Jersey<input name="jersey_name" required maxLength={100} className={fieldClass} /></label>
         <label className="block text-sm font-bold text-slate-700">Selected Team<select name="team" required defaultValue="" className={fieldClass}><option value="" disabled>Select team</option>{jerseyTeams.map((team) => <option key={team}>{team}</option>)}</select></label>
         <label className="block text-sm font-bold text-slate-700">Jersey Size<select name="jersey_size" required defaultValue="" className={fieldClass}><option value="" disabled>Select size</option>{jerseySizes.map((size) => <option key={size}>{size}</option>)}</select></label>
         <label className="block text-sm font-bold text-slate-700">Opt for Jersey Modification<select name="jersey_option" required value={option} onChange={(event) => setOption(event.target.value)} className={fieldClass}><option value="" disabled>Select jersey option</option>{jerseyOptions.map((item) => <option key={item.value} value={item.value}>{item.value} — ₹{item.price}</option>)}</select></label>
       </div>
-      {selected && <p className="rounded-xl bg-orange-50 p-4 font-bold text-slate-800">Amount payable: ₹{selected.price}</p>}
+      {selected && <p className="rounded-xl border border-fuchsia-100 bg-fuchsia-50 p-4 font-bold text-fuchsia-900">Amount payable: ₹{selected.price}</p>}
       {selected && selected.price > 0 && !requestId && <div className="space-y-3">
         <p className="text-sm text-slate-700">Submit your jersey details first, then pay ₹{selected.price} using this QR code.</p>
         <PaymentQr />
       </div>}
-      <button type="submit" disabled={busy} className="rounded-xl bg-orange-500 px-5 py-3 font-black text-white hover:bg-orange-600 disabled:opacity-50">{busy ? "Saving..." : "Submit Jersey Details"}</button>
+      <button type="submit" disabled={busy} className="w-full rounded-xl bg-gradient-to-r from-indigo-700 to-fuchsia-700 px-6 py-3.5 font-black text-white shadow-md transition hover:from-indigo-800 hover:to-fuchsia-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fuchsia-700 disabled:opacity-50 sm:w-auto">{busy ? "Saving..." : "Submit Jersey Details"}</button>
       </fieldset>
     </form>
   </section>;

@@ -1,11 +1,12 @@
-import { isAdminAuthenticated } from "@/lib/admin/auth";
+import { getAdminRole } from "@/lib/admin/auth";
 import AdminLogin from "../../../admin-login";
 import AuctionAdminPanel from "../auction-admin-panel";
 
 export const instant = false;
 
 export default async function RunAuctionPage({ params }: { params: Promise<{ slug: string }> }) {
-  if (!(await isAdminAuthenticated())) return <AdminLogin />;
+  const role = await getAdminRole();
+  if (role !== "super") return <AdminLogin auction restricted={role === "viewer"} />;
   const { slug } = await params;
   return <AuctionAdminPanel slug={slug} view="run" />;
 }

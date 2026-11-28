@@ -8,7 +8,7 @@ import ts from "typescript";
 
 const require = createRequire(import.meta.url);
 
-function loadPage(path, role) {
+function loadPage(path, role, mohallaEnabled = false) {
   const compiled = ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
@@ -18,6 +18,8 @@ function loadPage(path, role) {
   new Function("require", "exports", compiled)((name) => {
     if (name === "react/jsx-runtime") return require(name);
     if (name === "next/link") return { __esModule: true, default: "a" };
+    if (name === "next/navigation") return { notFound: () => { throw new Error("NOT_FOUND"); } };
+    if (name === "@/lib/tournament-features") return { INTER_MOHALLA_ENABLED: mohallaEnabled };
     if (name === "../../lib/admin/auth") return { getAdminRole: async () => role };
     if (name === "../../lib/supabase/admin") return {
       supabaseAdmin: {
@@ -40,7 +42,7 @@ test("view-only navigation exposes registration sections but not privileged sect
   const html = renderToStaticMarkup(await page());
   assert.match(html, /Player Registration Management/);
   assert.match(html, /Jersey Form Management/);
-  assert.match(html, /Player Survey Management/);
+  assert.doesNotMatch(html, /Player Survey Management/);
   assert.doesNotMatch(html, /Leaderboard Update|Auction Hosting/);
 });
 
@@ -49,7 +51,18 @@ test("direct privileged page access is denied while registration pages are avail
   for (const view of ["friendshipcup-leaderboard", "quadclash100-leaderboard"]) {
     assert.match(renderToStaticMarkup(await page({ view })), /Access restricted/);
   }
-  for (const view of ["quadclash100-registration", "quadclash100-jersey", "mohalla-survey"]) {
+  for (const view of ["quadclash100-registration", "quadclash100-jersey"]) {
     assert.match(renderToStaticMarkup(await page({ view })), new RegExp(`dashboard:${view}:true`));
   }
+});
+
+test("Mohalla admin is unavailable until re-enabled", async () => {
+  for (const role of [null, "viewer", "super"]) {
+    const disabled = loadPage("./admin-section-page.tsx", role);
+    await assert.rejects(disabled({ view: "mohalla-survey" }), /NOT_FOUND/);
+  }
+  const enabledPage = loadPage("./page.tsx", "viewer", true);
+  assert.match(renderToStaticMarkup(await enabledPage()), /Player Survey Management/);
+  const enabledSection = loadPage("./admin-section-page.tsx", "viewer", true);
+  assert.match(renderToStaticMarkup(await enabledSection({ view: "mohalla-survey" })), /dashboard:mohalla-survey:true/);
 });

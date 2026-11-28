@@ -1,4 +1,6 @@
-﻿export default function AboutPage() {
+﻿import { INTER_MOHALLA_ENABLED } from "@/lib/tournament-features";
+
+export default function AboutPage() {
   return (
     <main className="min-h-screen site-page-surface">
 
@@ -137,10 +139,10 @@
             description="A fast-paced competitive cricket format designed to test teams under pressure."
           />
 
-          <TournamentCard
+          {INTER_MOHALLA_ENABLED && <TournamentCard
             title="Inter Mohalla Tournament"
             description="An inter-Mohalla leather cricket championship bringing players and communities together."
-          />
+          />}
 
         </div>
       </section>

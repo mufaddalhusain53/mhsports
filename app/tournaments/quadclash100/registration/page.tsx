@@ -1,6 +1,5 @@
-import Link from "next/link";
-import TournamentLogo from "../../../components/TournamentLogo";
 import QuadClashRegistrationForm from "./registration-form";
+import RegistrationHeader from "../registration-header";
 
 const tournamentHighlights = [
   "100-ball tournament",
@@ -11,31 +10,28 @@ const tournamentHighlights = [
 
 export default function Registration() {
   return (
-    <main className="min-h-screen site-page-surface px-4 py-10 text-slate-950">
-      <div className="mx-auto max-w-3xl">
-        <Link
-          href="/tournaments/quadclash100"
-          className="inline-flex items-center gap-2 rounded-lg border border-orange-400/40 bg-orange-500/10 px-4 py-2.5 text-sm font-extrabold text-orange-600 transition hover:border-orange-300 hover:bg-orange-500/20"
-        >
-          ← Back to QuadClash 100
-        </Link>
-
-        <div className="mt-8">
-          <TournamentLogo tournament="quadclash100" className="h-28 w-28 sm:h-36 sm:w-36" />
-        </div>
-        <h1 className="mt-4 text-4xl font-black sm:text-5xl">Player Registration</h1>
+    <main className="min-h-screen site-page-surface px-4 py-8 text-slate-950 sm:px-6 sm:py-12">
+      <div className="mx-auto max-w-4xl">
+        <RegistrationHeader
+          title="Player Registration"
+          description="Get ready for a memorable season of cricket, competition and community."
+        />
 
         <section
           aria-labelledby="tournament-details"
-          className="mt-6 rounded-2xl border border-orange-200 bg-white p-6 shadow-sm sm:p-8"
+          className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5 sm:p-8"
         >
-          <h2 id="tournament-details" className="text-2xl font-black">
-            🏏 Player Fees – ₹3,000
-          </h2>
-          <h3 className="mt-5 text-lg font-extrabold">What’s Included?</h3>
-
-          <div className="mt-4 grid gap-5 sm:grid-cols-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-5">
             <div>
+              <p className="text-xs font-black uppercase tracking-widest text-fuchsia-700">Season 2 details</p>
+              <h2 id="tournament-details" className="mt-1 text-2xl font-black">Tournament information</h2>
+            </div>
+            <span className="rounded-xl bg-fuchsia-50 px-4 py-2 text-sm font-black text-fuchsia-800">Player Fees · ₹3,000</span>
+          </div>
+          <h3 className="mt-6 text-lg font-extrabold">What’s Included?</h3>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-slate-50 p-4">
               <h4 className="font-bold">🏟 Tournament Format</h4>
               <ul className="mt-2 list-inside list-disc space-y-1 text-sm leading-6 text-slate-600">
                 {tournamentHighlights.map((highlight) => (
@@ -43,7 +39,7 @@ export default function Registration() {
                 ))}
               </ul>
             </div>
-            <div>
+            <div className="rounded-2xl bg-slate-50 p-4">
               <h4 className="font-bold">🍴 Food &amp; Accommodation</h4>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Food and stay included for all players.
@@ -51,10 +47,10 @@ export default function Registration() {
               <h4 className="mt-4 font-bold">👕 Kit</h4>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Official tournament jersey provided. Players have to get their
-                own black tracks.
+                own white tracks.
               </p>
             </div>
-            <div>
+            <div className="rounded-2xl bg-slate-50 p-4">
               <h4 className="font-bold">🏊 Extras</h4>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Swimming pool access.
@@ -64,7 +60,7 @@ export default function Registration() {
                 All matches streamed live.
               </p>
             </div>
-            <div>
+            <div className="rounded-2xl bg-slate-50 p-4">
               <h4 className="font-bold">⚡ Experience</h4>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 A compact, high-intensity cricket tournament with competitive
@@ -73,7 +69,7 @@ export default function Registration() {
             </div>
           </div>
 
-          <div className="mt-6 rounded-xl bg-orange-50 p-4 text-sm font-semibold leading-6 text-slate-700">
+          <div className="mt-5 rounded-2xl border border-fuchsia-100 bg-fuchsia-50 p-4 text-sm font-semibold leading-6 text-slate-700">
             <p>🗓 Dates: 20, 21, 22 March 2027</p>
             <p>📍 Venue: Eprashala Cricket Ground, Kasara</p>
           </div>

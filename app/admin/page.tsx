@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getAdminRole } from "../../lib/admin/auth";
 import AdminLogin from "./admin-login";
 import AdminLogoutButton from "./admin-logout-button";
+import { INTER_MOHALLA_ENABLED } from "@/lib/tournament-features";
 
 export const instant = false;
 
@@ -36,7 +37,7 @@ const adminPages = [
       },
     ],
   },
-  {
+  ...(INTER_MOHALLA_ENABLED ? [{
     tournament: "Mohalla Tournament",
     sections: [
       {
@@ -45,7 +46,7 @@ const adminPages = [
         href: "/admin/mohalla/survey",
       },
     ],
-  },
+  }] : []),
   {
     tournament: "Live Auctions",
     sections: [
@@ -79,7 +80,7 @@ export default async function AdminPage() {
         <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <p className="text-sm font-bold uppercase tracking-wider text-orange-500">
-              Mufaddal Husain Sports
+              Beyond Boundaries
             </p>
             <h1 className="mt-1 text-3xl font-black text-slate-900">
               Admin Dashboard
@@ -101,8 +102,9 @@ export default async function AdminPage() {
                 {page.tournament}
               </h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {page.sections.map((section) => (
-                  <Link
+                {page.sections.map((section) => {
+                  const SectionLink = section.href === "/admin/auctions" ? "a" : Link;
+                  return <SectionLink
                     key={section.href}
                     href={section.href}
                     className="rounded-xl border border-slate-200 p-5 transition hover:border-orange-300 hover:bg-orange-50"
@@ -116,8 +118,8 @@ export default async function AdminPage() {
                     <span className="mt-4 inline-block text-sm font-bold text-orange-700">
                       Open section →
                     </span>
-                  </Link>
-                ))}
+                  </SectionLink>;
+                })}
               </div>
             </section>
           ))}

@@ -2,21 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { INTER_MOHALLA_ENABLED } from "@/lib/tournament-features";
 
 const exploreLinks = [
   { href: "/", label: "Home" },
   { href: "/tournaments", label: "Tournaments" },
   { href: "/about", label: "About Mufaddal Husain Sports" },
-  { href: "/admin", label: "Admin" },
 ];
 
-const tournamentLinks = [
-  { href: "/tournaments/friendshipcup", label: "Friendship Cup" },
-  { href: "/tournaments/quadclash100", label: "QuadClash 100" },
-  { href: "/tournaments/inter-mohalla", label: "Inter-Mohalla" },
-];
-
-export default function Navbar() {
+export default function Navbar({ brand = "site" }: { brand?: "site" | "admin" | "auction" }) {
   const [open, setOpen] = useState(false);
   const [friendshipOpen, setFriendshipOpen] = useState(false);
   const [quadClashOpen, setQuadClashOpen] = useState(false);
@@ -36,23 +30,32 @@ export default function Navbar() {
   }, [open]);
 
   const closeMenu = () => setOpen(false);
+  const navigationLinks = brand === "site" ? exploreLinks : [...exploreLinks, { href: "/admin", label: "Admin" }];
+  const MainSiteLink = brand === "auction" ? "a" : Link;
+  const branding = brand === "auction"
+    ? { href: "/admin/auctions", logo: "/beyond-auctions-logo.png", name: "Beyond Auctions", tagline: "AUCTION MANAGEMENT" }
+    : brand === "admin"
+      ? { href: "/admin", logo: "/beyond-boundaries-logo.png", name: "Beyond Boundaries", tagline: "ADMINISTRATION" }
+      : { href: "/", logo: "/mhsports-logo.png", name: "Mufaddal Husain Sports", tagline: "COMMUNITY • CRICKET • COMPETITION" };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
-      <div className="relative mx-auto flex h-20 max-w-7xl items-center justify-center px-4 sm:h-24 sm:px-6 md:px-10 lg:justify-between xl:justify-center">
-        <Link href="/" onClick={closeMenu} className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <img src="/mhsports-logo.png" alt="Mufaddal Husain Sports" className="h-16 w-auto max-w-[68vw] object-contain sm:h-20" />
-          <div className="hidden text-left sm:block">
-            <div className="text-xl font-black tracking-tight text-slate-950 md:text-2xl">MUFADDAL HUSAIN SPORTS</div>
-            <div className="mt-1 text-xs font-medium tracking-wide text-slate-500">COMMUNITY • CRICKET • COMPETITION</div>
+    <header className="sticky top-0 z-50 border-b border-cyan-200/20 bg-gradient-to-r from-slate-950 via-blue-950 to-sky-900 shadow-[0_8px_24px_rgba(15,23,42,0.2)]">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-3 px-4 sm:h-24 sm:px-6 md:px-10">
+        <Link href={branding.href} onClick={closeMenu} className="flex min-w-0 items-center gap-2 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200 sm:gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow-md ring-1 ring-white/30 sm:h-16 sm:w-16">
+            <img src={branding.logo} alt={branding.name} className="h-full w-full object-contain" />
+          </span>
+          <div className="min-w-0 text-left">
+            <div className="truncate text-[clamp(0.65rem,3.4vw,0.875rem)] font-black uppercase tracking-tight text-white sm:text-lg md:text-xl">{branding.name}</div>
+            <div className="mt-0.5 truncate text-[9px] font-bold tracking-wide text-cyan-100/80 sm:mt-1 sm:text-xs">{branding.tagline}</div>
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-8 lg:flex xl:absolute xl:right-10">
-          {exploreLinks.map((item) => (
-            <Link key={item.href} href={item.href} className="font-semibold text-slate-700 transition hover:text-orange-500">
+        <nav aria-label="Main navigation" className="hidden shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 lg:flex">
+          {navigationLinks.map((item) => (
+            <MainSiteLink key={item.href} href={item.href} className="rounded-full px-4 py-2 text-sm font-bold text-slate-100 transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">
               {item.label === "About Mufaddal Husain Sports" ? "About" : item.label}
-            </Link>
+            </MainSiteLink>
           ))}
         </nav>
 
@@ -61,72 +64,79 @@ export default function Navbar() {
           onClick={() => setOpen(true)}
           aria-label="Open navigation menu"
           aria-expanded={open}
-          className="absolute right-4 flex h-11 w-11 items-center justify-center rounded-xl border border-blue-900 bg-blue-950 text-2xl text-white shadow-sm transition hover:bg-blue-900 lg:hidden"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-2xl text-white shadow-sm transition hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200 lg:hidden"
         >
           <span aria-hidden="true">☰</span>
         </button>
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/45 lg:hidden" onClick={closeMenu}>
+        <div className="fixed inset-0 z-[100] bg-slate-950/60 lg:hidden" onClick={closeMenu}>
           <section
             role="dialog"
             aria-modal="true"
             aria-label="Site navigation"
-            className="absolute inset-y-0 right-0 flex w-full max-w-none flex-col overflow-hidden border-l border-blue-950/10 bg-[#f3f7fc] text-[#183451] shadow-2xl animate-in slide-in-from-right duration-200"
+            className="absolute inset-y-0 right-0 flex w-full max-w-none flex-col overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-sky-900 text-white shadow-2xl animate-in slide-in-from-right duration-200"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex h-[76px] shrink-0 items-center justify-end border-b border-slate-200 px-5">
-              <button type="button" onClick={closeMenu} aria-label="Close navigation menu" className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e0ebf7] text-3xl leading-none text-[#123d60] transition hover:bg-[#cfdef0]">×</button>
+            <div className="flex h-[76px] shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">Navigation</p>
+                <p className="mt-1 truncate text-base font-black">{branding.name}</p>
+              </div>
+              <button type="button" onClick={closeMenu} aria-label="Close navigation menu" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-3xl leading-none text-white transition hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">×</button>
             </div>
 
             <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-              <div className="mb-2 rounded-xl border-l-4 border-[#5db7ff] bg-[#123e70] px-4 py-3 text-sm font-extrabold tracking-[0.12em] text-[#e6f3ff] shadow-lg">
+              <div className="mb-3 flex items-center gap-2 px-1 text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
                 EXPLORE
               </div>
-              <div className="mb-7 flex flex-col">
-                {exploreLinks.map((item) => (
-                  <Link key={item.href} href={item.href} onClick={closeMenu} className="rounded-lg px-4 py-4 text-base font-semibold transition hover:bg-[#e2eefb] hover:text-[#124b83]">
-                    {item.label}
-                  </Link>
+              <div className="mb-7 flex flex-col gap-2">
+                {navigationLinks.map((item) => (
+                  <MainSiteLink key={item.href} href={item.href} onClick={closeMenu} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-base font-bold text-slate-100 transition hover:border-cyan-200/30 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">
+                    <span>{item.label}</span><span aria-hidden="true" className="text-cyan-200">→</span>
+                  </MainSiteLink>
                 ))}
               </div>
 
-              <div className="mb-2 rounded-xl border-l-4 border-[#5db7ff] bg-[#123e70] px-4 py-3 text-sm font-extrabold tracking-[0.12em] text-[#e6f3ff] shadow-lg">
+              <div className="mb-3 flex items-center gap-2 px-1 text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
                 TOURNAMENTS
               </div>
-              <div className="flex flex-col">
-                <button type="button" aria-expanded={friendshipOpen} onClick={() => setFriendshipOpen((value) => !value)} className="flex w-full items-center justify-between rounded-lg px-4 py-4 text-left text-base font-semibold transition hover:bg-[#e2eefb] hover:text-[#124b83]">
-                  <span>Friendship Cup</span><span aria-hidden="true" className="text-sm">{friendshipOpen ? "−" : "+"}</span>
+              <div className="flex flex-col gap-2">
+                <button type="button" aria-expanded={friendshipOpen} onClick={() => setFriendshipOpen((value) => !value)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-base font-bold text-slate-100 transition hover:border-cyan-200/30 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">
+                  <span>Friendship Cup</span><span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-cyan-300/10 text-lg text-cyan-200">{friendshipOpen ? "−" : "+"}</span>
                 </button>
-                {friendshipOpen && <div className="mb-2 ml-4 flex flex-col border-l-2 border-[#c7dff5] pl-3">
+                {friendshipOpen && <div className="ml-4 flex flex-col border-l-2 border-cyan-300/30 pl-3">
                   {[
                     { href: "/tournaments/friendshipcup/fcstats", label: "Player Statistics" },
                     { href: "/tournaments/friendshipcup/fcschedule", label: "Season Schedule" },
                     { href: "/tournaments/friendshipcup/fcpointstable", label: "Points Table" },
                     { href: "/tournaments/friendshipcup/fchalloffame", label: "Hall Of Fame" },
-                  ].map((item) => <Link key={item.href} href={item.href} onClick={closeMenu} className="rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-[#e2eefb] hover:text-[#124b83]">{item.label}</Link>)}
+                    { href: "/tournaments/friendshipcup/committee", label: "Friendship Group Committee" },
+                  ].map((item) => <MainSiteLink key={item.href} href={item.href} onClick={closeMenu} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">{item.label}</MainSiteLink>)}
                 </div>}
-                <button type="button" aria-expanded={quadClashOpen} onClick={() => setQuadClashOpen((value) => !value)} className="flex w-full items-center justify-between rounded-lg px-4 py-4 text-left text-base font-semibold transition hover:bg-[#e2eefb] hover:text-[#124b83]">
-                  <span>QuadClash 100</span><span aria-hidden="true" className="text-sm">{quadClashOpen ? "−" : "+"}</span>
+                <button type="button" aria-expanded={quadClashOpen} onClick={() => setQuadClashOpen((value) => !value)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-base font-bold text-slate-100 transition hover:border-cyan-200/30 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">
+                  <span>QuadClash 100</span><span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-cyan-300/10 text-lg text-cyan-200">{quadClashOpen ? "−" : "+"}</span>
                 </button>
-                {quadClashOpen && <div className="mb-2 ml-4 flex flex-col border-l-2 border-[#c7dff5] pl-3">
+                {quadClashOpen && <div className="ml-4 flex flex-col border-l-2 border-cyan-300/30 pl-3">
                   {[
                     { href: "/tournaments/quadclash100/stats", label: "Player Statistics" },
                     { href: "/tournaments/quadclash100/points-table", label: "Points Table" },
                     { href: "/tournaments/quadclash100/teams", label: "Teams" },
-                    { href: "/tournaments/quadclash100/season-2", label: "Season 2 Dates" },
                     { href: "/tournaments/quadclash100/registration", label: "Season 2 Registration" },
                     { href: "/tournaments/quadclash100/sponsors", label: "Sponsors" },
                     { href: "/tournaments/quadclash100/hall-of-fame", label: "Hall of Fame" },
-                  ].map((item) => <Link key={item.href} href={item.href} onClick={closeMenu} className="rounded-lg px-4 py-3 text-sm font-medium transition hover:bg-[#e2eefb] hover:text-[#124b83]">{item.label}</Link>)}
+                    { href: "/tournaments/quadclash100/organizing-team", label: "Organizing Team" },
+                  ].map((item) => <MainSiteLink key={item.href} href={item.href} onClick={closeMenu} className="rounded-lg px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">{item.label}</MainSiteLink>)}
                 </div>}
-                <Link href="/tournaments/inter-mohalla" onClick={closeMenu} className="rounded-lg px-4 py-4 text-base font-semibold transition hover:bg-[#e2eefb] hover:text-[#124b83]">Inter-Mohalla</Link>
+                {INTER_MOHALLA_ENABLED && <MainSiteLink href="/tournaments/inter-mohalla" onClick={closeMenu} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-base font-bold text-slate-100 transition hover:border-cyan-200/30 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">Inter-Mohalla</MainSiteLink>}
               </div>
             </nav>
 
-            <div className="shrink-0 border-t border-slate-200 p-5 text-xs text-slate-500">
-              MUFADDAL HUSAIN SPORTS <span className="px-1">•</span> COMMUNITY • CRICKET • COMPETITION
+            <div className="shrink-0 border-t border-white/10 px-5 py-4 text-xs font-semibold tracking-wide text-cyan-100/70">
+              {branding.name.toUpperCase()} • {branding.tagline}
             </div>
           </section>
         </div>

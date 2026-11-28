@@ -173,8 +173,8 @@ export default function AdminDashboard({ responses, view, readOnly }: Props) {
 
           <div className="flex items-center gap-3">
             <img
-              src="/mhsports-logo.png"
-              alt="Mufaddal Husain Sports"
+              src="/beyond-boundaries-logo.png"
+              alt="Beyond Boundaries"
               className="h-12 w-auto object-contain"
             />
 

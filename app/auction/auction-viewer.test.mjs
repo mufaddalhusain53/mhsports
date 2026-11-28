@@ -16,7 +16,7 @@ const code = ts.transpileModule(readFileSync(new URL("./[tournament]/auction-pub
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 
-function renderTeam(players, squadView = "cards", showCategory = true, screen = "overview", tournamentOverrides = {}) {
+function renderTeam(players, squadView = "cards", showCategory = true, screen = "overview", tournamentOverrides = {}, sponsors = []) {
   const states = [screen, "team-one", "unsold", "all", "no match", "home"];
   const react = {
     ...React,
@@ -44,17 +44,37 @@ function renderTeam(players, squadView = "cards", showCategory = true, screen = 
   return renderToStaticMarkup(React.createElement(exports.TestViewer, {
     tournament: { name: "Test", status: "setup", min_squad_size: 0, base_price: 0, organizer_logo_urls: [], projector_player_fields: [], show_player_category: showCategory, viewer_squad_view: squadView, ...tournamentOverrides },
     teams: [{ id: "team-1", name: "Team One", slug: "team-one", logo_url: null, points_remaining: 100, rtm_count: 0 }],
-    players, priceCategories: [], sponsors: [], refreshMessage: "",
+    players, priceCategories: [], sponsors, refreshMessage: "",
   }));
 }
 
 test("viewer places the watermark below the bidding panel on desktop and retains it on other views", () => {
   const overview = renderTeam([]);
-  assert.match(overview, /<\/section><div class="mx-auto hidden w-fit[^"]*lg:block"><div>Developed By Beyond Boundaries<\/div><\/div><\/aside>/);
-  assert.match(overview, /class="shrink-0 bg-blue-950\/95 py-1 lg:hidden"><div>Developed By Beyond Boundaries/);
+  assert.match(overview, /<\/section><div class="mx-auto hidden w-fit[^"]*lg:block[^"]*"><div>Developed By Beyond Boundaries<\/div><\/div><\/aside>/);
+  assert.match(overview, /class="flex shrink-0 justify-center bg-blue-950\/95 py-1 lg:hidden"><div>Developed By Beyond Boundaries/);
   const sponsors = renderTeam([], "cards", true, "sponsors");
-  assert.match(sponsors, /class="shrink-0 bg-blue-950\/95 py-1 "><div>Developed By Beyond Boundaries/);
+  assert.match(sponsors, /class="flex shrink-0 justify-center bg-blue-950\/95 py-1 "><div>Developed By Beyond Boundaries/);
   assert.doesNotMatch(sponsors, /mx-auto hidden w-fit/);
+});
+
+test("sponsor page displays each sponsor once and preserves optional links", () => {
+  const sponsors = [
+    { id: "s1", name: "Logo Sponsor", sponsor_title: "Title Sponsor", logo_url: "https://example.com/logo.png", website_url: "https://example.com" },
+    { id: "s2", name: "Text Sponsor", sponsor_title: null, logo_url: null, website_url: null },
+  ];
+  const html = renderTeam([], "cards", true, "sponsors", {}, sponsors);
+  assert.match(html, /href="https:\/\/example.com" target="_blank" rel="noreferrer" aria-label="Title Sponsor: Logo Sponsor"/);
+  assert.match(html, /aria-label="Text Sponsor" class=/);
+  assert.equal((html.match(/>Logo Sponsor<\/p>/g) ?? []).length, 1);
+  assert.equal((html.match(/>Text Sponsor<\/p>/g) ?? []).length, 1);
+});
+
+test("sponsor strip preserves links and hides duplicate cards from assistive technology", () => {
+  const sponsors = [{ id: "s1", name: "Test Sponsor", sponsor_title: "Title Sponsor", logo_url: null, website_url: "https://example.com" }];
+  const html = renderTeam([], "cards", true, "overview", {}, sponsors);
+  assert.match(html, /aria-label="Tournament sponsors"/);
+  assert.match(html, /href="https:\/\/example.com" target="_blank" rel="noreferrer" aria-label="Title Sponsor: Test Sponsor"/);
+  assert.match(html, /sponsor-strip-duplicate" aria-hidden="true">.*tabindex="-1" aria-label="Title Sponsor: Test Sponsor"/);
 });
 
 test("bidding panel displays configured player details and hides disabled or empty details", () => {
@@ -62,7 +82,7 @@ test("bidding panel displays configured player details and hides disabled or emp
   const settings = { current_player_id: "p1", projector_player_fields: ["skill", "previous_team"] };
   const html = renderTeam([player], "cards", true, "overview", settings);
   assert.match(html, /class="absolute left-0 top-0[^"]*">#1<\/span>/);
-  assert.match(html, /class="min-w-0 text-center"><p[^>]*>Player One<\/p>.*?<dl class="mt-1 flex flex-wrap justify-center gap-1">/);
+  assert.match(html, /class="min-w-0 text-center"><p[^>]*>Player One<\/p>.*?<dl class="mt-1 flex flex-wrap justify-center gap-1 lg:items-start">/);
   assert.match(html, /<dt[^>]*>Category<\/dt><dd[^>]*>Gold<\/dd>/);
   assert.match(html, /<dt[^>]*>Player Role<\/dt><dd[^>]*>All Rounder<\/dd>/);
   assert.match(html, /<dt[^>]*>Previous team<\/dt><dd[^>]*>Team Two<\/dd>/);

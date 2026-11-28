@@ -58,7 +58,7 @@ export default function AdminAuctions() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-5xl">
-        <Link href="/admin" className="text-sm font-bold text-orange-700 hover:text-orange-800">← Admin dashboard</Link>
+        <a href="/admin" className="text-sm font-bold text-orange-700 hover:text-orange-800">← Admin dashboard</a>
         <header className="mt-5">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">Auction management</p>
           <h1 className="mt-1 text-3xl font-black text-slate-950">Live Auctions</h1>

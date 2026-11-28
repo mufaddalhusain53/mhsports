@@ -34,7 +34,7 @@ function renderProjector(teamCount, selectedTeam = false, options = {}) {
     status: "sold", sold_team_id: "team-0", sold_price: 10,
   })) : []);
   const data = {
-    tournament: { id: "test", slug: "test", status: "setup", points_per_team: 100, base_price: 0, min_squad_size: 0, max_squad_size: 8, organizer_logo_urls: [], projector_player_fields: options.playerFields ?? [], show_player_category: options.showCategory ?? true, rtm_enabled: options.rtmEnabled ?? true },
+    tournament: { id: "test", slug: "test", status: "setup", points_per_team: 100, base_price: 0, min_squad_size: 0, max_squad_size: 8, organizer_logo_urls: [], projector_player_fields: options.playerFields ?? [], show_player_category: options.showCategory ?? true, rtm_enabled: options.rtmEnabled ?? true, ...options.tournament },
     teams, players, categories: [], sponsors: [],
   };
   let stateIndex = 0;
@@ -53,6 +53,7 @@ function renderProjector(teamCount, selectedTeam = false, options = {}) {
   new Function("require", "exports", code)((name) => {
     if (name === "react") return react;
     if (name === "@/app/auction/PlayerCard") return cardExports;
+    if (name === "@/app/auction/TeamMark") return { __esModule: true, default: ({ name, size }) => React.createElement("span", { "data-team": name, "data-size": size }) };
     if (name === "@/app/auction/DeveloperWatermark") return { __esModule: true, default: () => React.createElement("div", null, "Developed By Beyond Boundaries") };
     if (name === "@/lib/auction/pricing") return { getAuctionBasePrice: () => 0 };
     if (name === "@/lib/auction/player-category") return categoryExports;
@@ -66,6 +67,14 @@ function renderProjector(teamCount, selectedTeam = false, options = {}) {
 
 test("projector displays the developer watermark", () => {
   assert.match(renderProjector(8), /Developed By Beyond Boundaries/);
+});
+
+test("spotlight uses the large projector logo for the bidding and winning team", () => {
+  const player = { id: "player", player_number: 1, full_name: "Player", category: "A", status: "available" };
+  const options = { tab: "live", players: [player], tournament: { projector_theme: "spotlight", current_player_id: "player", current_bid_team_id: "team-0", current_bid: 10 } };
+  assert.match(renderProjector(1, false, options), /data-team="Team 0" data-size="projector"/);
+  assert.match(renderProjector(1, false, { ...options, players: [{ ...player, status: "sold", sold_team_id: "team-0" }], tournament: { ...options.tournament, current_bid_team_id: null } }), /data-team="Team 0" data-size="projector"/);
+  assert.doesNotMatch(renderProjector(1, false, { ...options, tournament: { ...options.tournament, current_bid_team_id: null } }), /data-size="projector"/);
 });
 
 test("team grid renders every team without pagination", () => {

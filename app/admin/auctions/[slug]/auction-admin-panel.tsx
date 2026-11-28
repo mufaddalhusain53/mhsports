@@ -898,7 +898,6 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">Auction control room</p>
             <h1 className="mt-1 text-3xl font-black text-slate-950">{data.tournament.name}</h1>
-            <p className="mt-1 text-sm text-slate-500">Public page: <Link className="font-bold text-orange-700" href={publicUrl} target="_blank">{publicUrl} ↗</Link></p>
           </div>
           <span className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-black uppercase text-slate-700 shadow-sm">{data.tournament.status}</span>
         </header>

@@ -53,7 +53,7 @@ function SelectField({
         name={name}
         required
         defaultValue=""
-        className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-white px-3 font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+        className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-3 font-normal outline-none transition focus:border-fuchsia-500 focus:bg-white focus:ring-2 focus:ring-fuchsia-100"
       >
         <option value="" disabled>
           Select {label.toLowerCase()}
@@ -144,7 +144,7 @@ export default function QuadClashRegistrationForm() {
     return (
       <section
         role="status"
-        className="mt-6 rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm sm:p-8"
+        className="mt-6 rounded-3xl border border-emerald-200 bg-white p-5 shadow-lg shadow-slate-900/5 sm:p-8"
       >
         <h2 className="text-2xl font-black text-emerald-800">
           Registration successful
@@ -158,8 +158,8 @@ export default function QuadClashRegistrationForm() {
 
   if (registrationOpen !== true) {
     return (
-      <section className="mt-6 rounded-2xl border border-orange-200 bg-white p-6 shadow-sm sm:p-8">
-        <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-black uppercase tracking-wider text-orange-700">
+      <section className="mt-6 rounded-3xl border border-fuchsia-100 bg-white p-5 shadow-lg shadow-slate-900/5 sm:p-8">
+        <span className="rounded-full bg-fuchsia-50 px-3 py-1 text-xs font-black uppercase tracking-wider text-fuchsia-800">
           Registration closed
         </span>
         <p className="mt-4 text-slate-600">
@@ -175,14 +175,15 @@ export default function QuadClashRegistrationForm() {
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-      <h2 className="text-2xl font-black">Register as a player</h2>
+    <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5 sm:p-8">
+      <p className="text-xs font-black uppercase tracking-widest text-fuchsia-700">Join the tournament</p>
+      <h2 className="mt-1 text-2xl font-black">Register as a player</h2>
       <p className="mt-2 text-sm leading-6 text-slate-600">
         Fill in your details below. All fields are required.
       </p>
 
       <form onSubmit={submitRegistration} className="mt-6 space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
           <label className="block text-sm font-bold text-slate-700">
             <span className="flex items-center gap-2">
               <span aria-hidden="true">👤</span> First Name
@@ -193,7 +194,7 @@ export default function QuadClashRegistrationForm() {
               required
               maxLength={100}
               autoComplete="given-name"
-              className="mt-2 h-12 w-full rounded-xl border border-slate-300 px-3 font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-3 font-normal outline-none transition focus:border-fuchsia-500 focus:bg-white focus:ring-2 focus:ring-fuchsia-100"
             />
           </label>
           <label className="block text-sm font-bold text-slate-700">
@@ -206,15 +207,15 @@ export default function QuadClashRegistrationForm() {
               required
               maxLength={100}
               autoComplete="family-name"
-              className="mt-2 h-12 w-full rounded-xl border border-slate-300 px-3 font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-3 font-normal outline-none transition focus:border-fuchsia-500 focus:bg-white focus:ring-2 focus:ring-fuchsia-100"
             />
           </label>
           <label className="block text-sm font-bold text-slate-700">
             <span className="flex items-center gap-2">
               <span aria-hidden="true">📱</span> Phone Number
             </span>
-            <span className="mt-2 flex h-12 overflow-hidden rounded-xl border border-slate-300 focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-100">
-              <span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-slate-600">
+            <span className="mt-2 flex h-12 overflow-hidden rounded-xl border border-slate-300 bg-slate-50/70 focus-within:border-fuchsia-500 focus-within:ring-2 focus-within:ring-fuchsia-100">
+              <span className="flex items-center border-r border-slate-200 bg-slate-100 px-3 text-slate-600">
                 +91
               </span>
               <input
@@ -227,7 +228,7 @@ export default function QuadClashRegistrationForm() {
                 minLength={10}
                 maxLength={10}
                 title="Enter a 10-digit Indian phone number."
-                className="min-w-0 flex-1 px-3 font-normal outline-none"
+                className="min-w-0 flex-1 bg-transparent px-3 font-normal outline-none"
               />
             </span>
           </label>
@@ -243,7 +244,7 @@ export default function QuadClashRegistrationForm() {
               max={100}
               step={1}
               inputMode="numeric"
-              className="mt-2 h-12 w-full rounded-xl border border-slate-300 px-3 font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-3 font-normal outline-none transition focus:border-fuchsia-500 focus:bg-white focus:ring-2 focus:ring-fuchsia-100"
             />
           </label>
           <label className="block text-sm font-bold text-slate-700">
@@ -259,7 +260,7 @@ export default function QuadClashRegistrationForm() {
               minLength={8}
               maxLength={8}
               title="ITS ID must contain exactly 8 digits."
-              className="mt-2 h-12 w-full rounded-xl border border-slate-300 px-3 font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              className="mt-2 h-12 w-full rounded-xl border border-slate-300 bg-slate-50/70 px-3 font-normal outline-none transition focus:border-fuchsia-500 focus:bg-white focus:ring-2 focus:ring-fuchsia-100"
             />
           </label>
           <SelectField
@@ -304,7 +305,7 @@ export default function QuadClashRegistrationForm() {
                 setPhotoName(photo?.name ?? "");
                 setPhotoError(message);
               }}
-              className="mt-2 block w-full rounded-xl border border-slate-300 px-3 py-3 text-sm font-normal file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-3 file:py-2 file:font-bold file:text-orange-700"
+              className="mt-2 block w-full rounded-xl border border-slate-300 bg-slate-50/70 px-3 py-3 text-sm font-normal file:mr-3 file:rounded-lg file:border-0 file:bg-fuchsia-100 file:px-3 file:py-2 file:font-bold file:text-fuchsia-800"
             />
             {photoError && (
               <span role="alert" className="mt-2 block text-sm font-semibold text-red-700">
@@ -319,7 +320,7 @@ export default function QuadClashRegistrationForm() {
           </label>
         </div>
 
-        <fieldset className="rounded-xl border border-slate-200 p-4 sm:p-5">
+        <fieldset className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50/40 p-4 sm:p-5">
           <legend className="px-2 text-base font-black text-slate-900">
             <span aria-hidden="true">✅ </span>Player consent
           </legend>
@@ -370,7 +371,7 @@ export default function QuadClashRegistrationForm() {
               type="checkbox"
               value="yes"
               required
-              className="mt-1 size-4 accent-orange-600"
+              className="mt-1 size-4 accent-fuchsia-700"
             />
             I have read, understood, and agree to the player consent terms above.
           </label>
@@ -388,7 +389,7 @@ export default function QuadClashRegistrationForm() {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-black text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          className="w-full rounded-xl bg-gradient-to-r from-indigo-700 to-fuchsia-700 px-6 py-3.5 text-sm font-black text-white shadow-md transition hover:from-indigo-800 hover:to-fuchsia-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fuchsia-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           {busy ? "Submitting registration…" : "Submit Registration"}
         </button>

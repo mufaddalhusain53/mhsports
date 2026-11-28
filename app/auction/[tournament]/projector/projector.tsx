@@ -197,18 +197,18 @@ export default function AuctionProjector({ slug }: { slug: string }) {
     <main id="auction-projector" style={backgroundStyle} className="relative h-dvh w-screen overflow-hidden bg-[#0b3554] bg-cover bg-center p-2 text-white">
       {tab === "live" && currentPlayer?.status === "sold" && <SoldFireworks />}
       <div className="mx-auto flex h-full max-w-[1920px] flex-col gap-0 overflow-hidden rounded-xl shadow-[0_0_24px_rgba(125,211,252,0.2)]">
-        <header className="grid h-[20dvh] min-h-[150px] max-h-[250px] shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 sm:px-6">
-          <div className="flex h-full items-center justify-start overflow-hidden">{organizerLogo && <AuctionImage src={organizerLogo} alt="Tournament organizer" width={520} height={520} className="h-[16dvh] max-h-[220px] w-auto max-w-[26vw] object-contain drop-shadow-[0_0_30px_rgba(255,178,80,0.35)]" />}</div>
+        <header className="grid h-[20dvh] min-h-[150px] max-h-[250px] shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 sm:px-6 lg:h-[23dvh] lg:max-h-[300px]">
+          <div className="flex h-full items-center justify-start overflow-hidden">{organizerLogo && <AuctionImage src={organizerLogo} alt="Tournament organizer" width={520} height={520} className="h-[16dvh] max-h-[220px] w-auto max-w-[26vw] object-contain drop-shadow-[0_0_30px_rgba(255,178,80,0.35)] lg:h-[20dvh] lg:max-h-[260px]" />}</div>
           <div className="flex min-w-0 items-center justify-center gap-2 text-center sm:gap-4">
-            {tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt="Tournament logo" width={760} height={760} className="h-[18dvh] max-h-[240px] w-auto max-w-[42vw] object-contain drop-shadow-[0_0_36px_rgba(255,178,80,0.4)]" />}
+            {tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt="Tournament logo" width={760} height={760} className="h-[18dvh] max-h-[240px] w-auto max-w-[42vw] object-contain drop-shadow-[0_0_36px_rgba(255,178,80,0.4)] lg:h-[22dvh] lg:max-h-[285px]" />}
           </div>
           <div className="flex h-full min-w-0 items-center justify-end">
             {sponsor?.logo_url && <div className="flex max-w-full flex-col items-center justify-center">
-              {sponsor.sponsor_title && <p className="max-w-full truncate text-center text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 sm:text-xs">{sponsor.sponsor_title}</p>}
-              <div className="mt-1 flex h-[12dvh] max-h-[150px] max-w-full items-center justify-center rounded-lg bg-slate-200/80 px-4 py-1">
-                <AuctionImage src={sponsor.logo_url} alt={sponsor.name} width={420} height={160} className="h-[11dvh] max-h-[140px] w-auto max-w-[22vw] object-contain" />
+              {sponsor.sponsor_title && <p className="max-w-full truncate text-center text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 sm:text-xs lg:rounded-full lg:border lg:border-cyan-300/40 lg:bg-slate-950/85 lg:px-3 lg:py-0.5 lg:leading-none lg:text-cyan-100 lg:shadow-md">{sponsor.sponsor_title}</p>}
+              <div className="mt-1 flex h-[12dvh] max-h-[150px] max-w-full items-center justify-center rounded-lg bg-slate-200/80 px-4 py-1 lg:h-[17dvh] lg:max-h-[200px]">
+                <AuctionImage src={sponsor.logo_url} alt={sponsor.name} width={420} height={160} className="h-[11dvh] max-h-[140px] w-auto max-w-[22vw] object-contain lg:h-[16dvh] lg:max-h-[190px]" />
               </div>
-              <p className="max-w-full truncate text-center text-[9px] font-bold uppercase tracking-wide text-white/75 sm:text-[10px]">{sponsor.name}</p>
+              <p className="max-w-full truncate text-center text-[9px] font-bold uppercase tracking-wide text-white/75 sm:text-[10px] lg:rounded-md lg:border lg:border-white/20 lg:bg-slate-950/85 lg:px-3 lg:py-0.5 lg:text-xs lg:leading-none lg:text-white lg:shadow-md">{sponsor.name}</p>
             </div>}
           </div>
         </header>
@@ -236,19 +236,19 @@ export default function AuctionProjector({ slug }: { slug: string }) {
               <p className="text-sm font-black uppercase tracking-wider text-yellow-300">{tournament.status === "completed" ? "Auction completed" : "Waiting for next player"}</p>
               <h2 className="mt-3 text-2xl font-black sm:text-4xl">{tournament.status === "completed" ? "Thank you!" : "Get ready"}</h2>
             </section>}
-            <aside className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-2 text-center">
+            <aside className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-2 text-center [@media(max-height:700px)]:gap-1">
               {activeTeam ? <>
                 <p className="text-xs font-black uppercase tracking-wider text-white/75">Bidding team</p>
-                <TeamMark name={activeTeam.name} logoUrl={activeTeam.logo_url} size="lg" />
-                <h2 className="line-clamp-2 text-sm font-black uppercase text-white sm:text-xl">{activeTeam.name}</h2>
+                <TeamMark name={activeTeam.name} logoUrl={activeTeam.logo_url} size="projector" />
+                <h2 className="line-clamp-2 text-sm font-black uppercase text-white sm:text-xl [@media(max-height:550px)]:text-sm">{activeTeam.name}</h2>
               </> : <p className="text-sm font-bold text-white/75">Waiting for the first bid</p>}
               {currentPlayer && <div className="w-full rounded-lg bg-slate-950/55 px-2 py-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-white/75">{currentPlayer.status === "sold" ? "Sold for" : currentPlayer.status === "unsold" ? "Auction result" : "Player bid"}</p>
-                <p className="break-words text-2xl font-black leading-tight text-yellow-300 sm:text-4xl lg:text-5xl">{currentPlayer.status === "sold" ? points(currentPlayer.sold_price) : currentPlayer.status === "unsold" ? "UNSOLD" : points(tournament.current_bid ?? getAuctionBasePrice(currentPlayer, categories, tournament.base_price))}</p>
+                <p className="break-words text-2xl font-black leading-tight text-yellow-300 sm:text-4xl lg:text-5xl [@media(max-height:550px)]:text-2xl">{currentPlayer.status === "sold" ? points(currentPlayer.sold_price) : currentPlayer.status === "unsold" ? "UNSOLD" : points(tournament.current_bid ?? getAuctionBasePrice(currentPlayer, categories, tournament.base_price))}</p>
               </div>}
               {activeTeam && <p className="rounded-md bg-blue-900/80 px-3 py-1 text-xs font-bold uppercase text-white sm:text-sm">Max bid <span className="text-yellow-300">{points(maxBid(activeTeam.points_remaining, activeTeamRoster, tournament.min_squad_size, tournament.base_price, activeTeam.rtm_count ?? 0))}</span></p>}
-              <div className="flex flex-wrap justify-center gap-1 text-[10px] font-bold uppercase sm:text-xs">
-                {([["Sold", soldPlayers.length, "bg-emerald-700"], ["Unsold", players.filter((player) => player.status === "unsold").length, "bg-rose-700"], ["Available", players.filter((player) => player.status === "available").length, "bg-amber-700"]] as const).map(([label, count, color]) => <span key={label} className={`${color} rounded px-2 py-1`}>{label} {count}</span>)}
+              <div className="flex flex-wrap justify-center gap-1 text-[10px] font-bold uppercase sm:text-xs [@media(max-height:550px)]:text-[9px]">
+                {([["Sold", soldPlayers.length, "bg-emerald-700"], ["Unsold", players.filter((player) => player.status === "unsold").length, "bg-rose-700"], ["Available", players.filter((player) => player.status === "available").length, "bg-amber-700"]] as const).map(([label, count, color]) => <span key={label} className={`${color} rounded px-2 py-1 [@media(max-height:550px)]:px-1 [@media(max-height:550px)]:py-0`}>{label} {count}</span>)}
               </div>
             </aside>
           </div>}
@@ -401,12 +401,12 @@ export default function AuctionProjector({ slug }: { slug: string }) {
               ["fullscreen", "F"],
             ] as const).map(([key, label]) => <button key={key} onClick={() => { if (key === "fullscreen") { void toggleFullscreen(); return; } setTab(key); setSelectedTeamId(null); }} aria-label={key === "live" ? "Live auction" : key === "teams" ? "Teams" : key === "players" ? "Players" : "Fullscreen"} className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black uppercase transition sm:h-10 sm:w-10 ${key === "fullscreen" ? "bg-orange-400 text-slate-950 shadow-none" : tab === key ? "bg-orange-400 text-slate-950 shadow-none" : "bg-slate-800/70 text-white/90 hover:bg-slate-700"}`}>{label}</button>)}
           </nav>
-          <DeveloperWatermark compact />
+          <DeveloperWatermark compact prominent />
           </div>
-          <section aria-label="Auction summary" className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+          <section aria-label="Auction summary" className="flex min-w-0 flex-1 flex-col justify-center gap-1.5 [@media(min-width:1024px)_and_(max-height:700px)]:gap-0">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              <h2 className="shrink-0 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 sm:text-xs">Auction summary</h2>
-              <p className="min-w-0 truncate text-[10px] font-semibold text-white sm:text-xs">
+              <h2 className="flex shrink-0 items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 sm:text-xs"><span aria-hidden="true" className="hidden h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.8)] lg:block" />Auction summary</h2>
+              <p className="min-w-0 truncate text-[10px] font-semibold text-white sm:text-xs lg:rounded-full lg:border lg:border-white/10 lg:bg-slate-950/35 lg:px-3">
                 {highestSoldPlayer
                   ? <>Top sold: <span className="font-black text-yellow-300">{highestSoldPlayer.full_name}</span> · <span className="font-black">{points(highestSoldPlayer.sold_price)}</span>{highestSoldTeam ? ` · ${highestSoldTeam.name}` : ""}</>
                   : "Top sold: No players sold yet"}
@@ -415,14 +415,15 @@ export default function AuctionProjector({ slug }: { slug: string }) {
             {teamSummaries.length ? <div className="sponsor-strip min-w-0" style={{ containerType: "inline-size" }} role="region" aria-label="Team balances and squads" tabIndex={movingTeamSummary ? 0 : undefined}>
               <div className={movingTeamSummary ? "sponsor-strip-track" : "w-full"} style={movingTeamSummary ? { animationDuration: `${teamSummaries.length * 12}s` } : undefined}>
                 {(movingTeamSummary ? [false, true] : [false]).map((duplicate) => <div key={String(duplicate)} className={movingTeamSummary ? `sponsor-strip-group${duplicate ? " sponsor-strip-duplicate" : ""}` : "flex w-full items-stretch gap-2"} aria-hidden={duplicate || undefined}>
-                  {teamSummaries.map(({ team, squadSize }) => <div key={team.id} style={movingTeamSummary ? { flex: "0 0 calc((100cqw - 1.5rem) / 4)" } : undefined} className={`flex min-w-0 items-center gap-2 rounded-md bg-white/10 px-2 py-1.5 ${movingTeamSummary ? "" : "flex-1"}`}>
-                    <div className="shrink-0" title={team.name}><TeamMark name={team.name} logoUrl={team.logo_url} size="md" /></div>
+                  {teamSummaries.map(({ team, squadSize }) => <div key={team.id} style={movingTeamSummary ? { flex: "0 0 calc((100cqw - 1.5rem) / 4)" } : undefined} className={`flex min-w-0 items-center gap-2 rounded-md bg-white/10 px-2 py-1.5 lg:rounded-xl lg:border lg:border-white/15 lg:bg-gradient-to-br lg:from-slate-950/85 lg:via-blue-950/80 lg:to-sky-900/70 lg:shadow-[0_4px_14px_rgba(2,6,23,0.25)] ${movingTeamSummary ? "" : "flex-1"}`}>
+                    <div className="shrink-0 lg:rounded-lg lg:ring-1 lg:ring-white/25" title={team.name}><TeamMark name={team.name} logoUrl={team.logo_url} size="md" /></div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1 text-[8px] font-bold uppercase tracking-wide text-white/70 sm:text-[9px]">
-                        <span>Balance</span><span className="text-sm font-black text-yellow-300 sm:text-base">{points(team.points_remaining)}</span>
+                      <p className="hidden truncate text-[10px] font-black uppercase leading-tight tracking-wide text-white lg:block">{team.name}</p>
+                      <div className="flex items-center justify-between gap-1 text-[8px] font-bold uppercase tracking-wide text-white/70 sm:text-[9px] lg:text-cyan-100/80">
+                        <span>Balance</span><span className="text-sm font-black text-yellow-300 sm:text-base lg:leading-tight">{points(team.points_remaining)}</span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between gap-1 text-[8px] font-bold uppercase tracking-wide text-white/70 sm:text-[9px]">
-                        <span>Squad</span><span className="font-black text-white">{squadSize}/{tournament.max_squad_size}</span>
+                      <div className="mt-1 flex items-center justify-between gap-1 text-[8px] font-bold uppercase tracking-wide text-white/70 sm:text-[9px] lg:mt-0 lg:text-cyan-100/80">
+                        <span>Squad</span><span className="font-black text-white lg:rounded-full lg:bg-white/10 lg:px-1.5 lg:text-sm lg:leading-none">{squadSize}/{tournament.max_squad_size}</span>
                       </div>
                     </div>
                   </div>)}

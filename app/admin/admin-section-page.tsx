@@ -3,6 +3,8 @@ import { getAdminRole } from "../../lib/admin/auth";
 import { supabaseAdmin } from "../../lib/supabase/admin";
 import AdminDashboard, { type AdminView } from "./admin-dashboard";
 import AdminLogin from "./admin-login";
+import { notFound } from "next/navigation";
+import { INTER_MOHALLA_ENABLED } from "@/lib/tournament-features";
 
 export const instant = false;
 
@@ -11,6 +13,7 @@ export default async function AdminSectionPage({
 }: {
   view: AdminView;
 }) {
+  if (view === "mohalla-survey" && !INTER_MOHALLA_ENABLED) notFound();
   const role = await getAdminRole();
   if (!role) {
     return <AdminLogin />;

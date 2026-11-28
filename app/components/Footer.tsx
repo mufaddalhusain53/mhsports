@@ -1,20 +1,15 @@
-import Image from "next/image";
+import Link from "next/link";
+import DeveloperWatermark from "../auction/DeveloperWatermark";
 
-export default function Footer() {
+export default function Footer({ showAdminLink = false }: { showAdminLink?: boolean }) {
   return (
-    <footer className="border-t border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-7xl items-center justify-center px-6 py-5 sm:px-8 lg:px-10">
-        <div className="flex items-center gap-3 text-sm font-semibold text-slate-600 sm:text-base">
-          <span>Developed By</span>
-          <Image
-            src="/beyond-boundaries-logo.png"
-            alt="Beyond Boundaries"
-            width={128}
-            height={128}
-            className="h-28 w-28 object-contain sm:h-32 sm:w-32"
-          />
-        </div>
-      </div>
+    <footer className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 border-t border-slate-200 bg-white px-4 py-4">
+      <DeveloperWatermark prominent />
+      {showAdminLink && (
+        <Link href="/admin" className="text-sm font-bold text-slate-600 underline decoration-slate-400 underline-offset-4 transition hover:text-blue-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700">
+          Admin Login
+        </Link>
+      )}
     </footer>
   );
 }
