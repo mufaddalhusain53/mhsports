@@ -63,17 +63,21 @@ test("viewer places the watermark in bottom navigation on mobile and desktop", (
   }
 });
 
-test("player filters have full accessible names and keep search and count together", () => {
+test("colored status counts become accessible filters only on the player screen", () => {
   const players = [
     { id: "p1", full_name: "Player One", player_number: 1, category: "Gold", status: "sold" },
     { id: "p2", full_name: "Player Two", player_number: 2, category: "Gold", status: "unsold" },
     { id: "p3", full_name: "Player Three", player_number: 3, category: "Gold", status: "available" },
   ];
   const html = renderTeam(players, "cards", true, "players");
-  for (const [label, short] of [["Sold", "S"], ["Unsold", "U"], ["Available", "A"]]) {
-    assert.match(html, new RegExp(`aria-label="${label}" aria-pressed="(?:true|false)"[^>]*><span aria-hidden="true" class="sm:hidden [^"]*">${short}</span>`));
-    assert.match(html, new RegExp(`aria-label="${label}: 1"`));
+  const overview = renderTeam(players);
+  for (const [label, selected] of [["Sold", false], ["Unsold", true], ["Available", false]]) {
+    assert.match(html, new RegExp(`<button type="button" aria-label="${label} players: 1" aria-pressed="${selected}"`));
+    assert.match(overview, new RegExp(`<span aria-label="${label}: 1"`));
+    assert.doesNotMatch(overview, new RegExp(`aria-label="${label} players: 1"`));
   }
+  assert.match(html, /aria-label="All players: 3" aria-pressed="false"[^>]*bg-slate-500[^>]*>All · 3<\/button>/);
+  assert.match(overview, /<span aria-label="All players: 3"[^>]*bg-slate-500[^>]*>All · 3<\/span>/);
   assert.match(html, /<input[^>]*aria-label="Search players"[^>]*\/><\/div><span aria-label="0 of 3 players"[^>]*>0\/3<\/span><\/div>/);
 });
 

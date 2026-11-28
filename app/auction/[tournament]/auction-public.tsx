@@ -258,17 +258,25 @@ function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponso
         </aside>}
 
         <section className={`flex min-h-0 min-w-0 flex-1 flex-col gap-2 sm:gap-3 ${screen === "sponsors" ? "w-full" : ""}`}>
-          {screen !== "sponsors" && <header className="relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-blue-900/55 px-3 py-2 shadow-lg backdrop-blur-sm sm:gap-4 sm:px-4">
+          {screen !== "sponsors" && <header className="relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-1 rounded-xl bg-blue-900/55 px-2 py-2 shadow-lg backdrop-blur-sm sm:gap-2 sm:px-4">
             <nav className="flex rounded-full bg-slate-950/45 p-1" aria-label="Auction viewer screens">
-              {(["overview", "players"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setScreen(tab); setSelectedTeamSlug(""); }} aria-current={screen === tab ? "page" : undefined} className={`rounded-full px-2 py-1.5 text-[10px] font-black uppercase transition sm:px-5 sm:py-2 sm:text-sm ${screen === tab ? "bg-yellow-400 text-slate-950" : "text-white hover:bg-white/10"}`}>{tab === "overview" ? "Teams" : "Players"}</button>)}
+              {(["overview", "players"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setScreen(tab); setSelectedTeamSlug(""); }} aria-current={screen === tab ? "page" : undefined} className={`rounded-full px-1 py-1.5 text-[10px] font-black uppercase transition sm:px-3 sm:py-2 sm:text-sm ${screen === tab ? "bg-yellow-400 text-slate-950" : "text-white hover:bg-white/10"}`}>{tab === "overview" ? "Teams" : "Players"}</button>)}
             </nav>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {([["Sold", "S", soldPlayers.length, "bg-green-600"], ["Unsold", "U", unsoldCount, "bg-red-500"], ["Available", "A", availableCount, "bg-amber-500"]] as const).map(([label, shortLabel, count, color]) => <span key={label} aria-label={`${label}: ${count}`} className={`${color} rounded-full px-1.5 py-1 text-[9px] font-black uppercase text-white sm:px-3 sm:text-xs`}><span aria-hidden="true" className="sm:hidden">{shortLabel}</span><span aria-hidden="true" className="hidden sm:inline">{label === "Available" ? "Avl" : label}</span> · {count}</span>)}
+            <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+              {screen === "players"
+                ? <button type="button" aria-label={`All players: ${players.length}`} aria-pressed={filterStatus === "all"} onClick={() => setFilterStatus("all")} className={`min-h-8 rounded-full bg-slate-500 px-1 py-1 text-[9px] font-black uppercase text-white transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300 sm:px-2 sm:text-[10px] ${filterStatus === "all" ? "ring-2 ring-white" : ""}`}>All · {players.length}</button>
+                : <span aria-label={`All players: ${players.length}`} className="rounded-full bg-slate-500 px-1 py-1 text-[9px] font-black uppercase text-white sm:px-2 sm:text-[10px]">All · {players.length}</span>}
+              {([["sold", "Sold", "S", soldPlayers.length, "bg-green-600"], ["unsold", "Unsold", "U", unsoldCount, "bg-red-500"], ["available", "Available", "A", availableCount, "bg-amber-500"]] as const).map(([value, label, shortLabel, count, color]) => {
+                const content = <><span aria-hidden="true" className="sm:hidden">{shortLabel}</span><span aria-hidden="true" className="hidden sm:inline">{label === "Available" ? "Avl" : label}</span> · {count}</>;
+                const classes = `${color} rounded-full px-1 py-1 text-[9px] font-black uppercase text-white sm:px-2 sm:text-[10px]`;
+                return screen === "players"
+                  ? <button key={value} type="button" aria-label={`${label} players: ${count}`} aria-pressed={filterStatus === value} onClick={() => setFilterStatus((current) => current === value ? "all" : value)} className={`${classes} min-h-8 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300 ${filterStatus === value ? "ring-2 ring-white" : ""}`}>{content}</button>
+                  : <span key={value} aria-label={`${label}: ${count}`} className={classes}>{content}</span>;
+              })}
             </div>
           </header>}
 
           {screen === "players" && <div className="relative z-10 flex shrink-0 items-center gap-1 rounded-xl bg-blue-900/50 p-1.5 shadow-md backdrop-blur-sm sm:gap-2 sm:p-3">
-            {([["all", "All", "All"], ["sold", "Sold", "S"], ["unsold", "Unsold", "U"], ["available", "Available", "A"]] as const).map(([value, label, shortLabel]) => <button key={value} type="button" aria-label={label} aria-pressed={filterStatus === value} onClick={() => setFilterStatus(value)} className={`shrink-0 rounded-full px-2 py-1.5 text-[9px] font-black uppercase sm:px-3 sm:text-xs [@media(min-width:1024px)_and_(max-width:1100px)]:px-2 ${filterStatus === value ? "bg-yellow-400 text-slate-950" : "bg-slate-950/35 text-white"}`}><span aria-hidden="true" className="sm:hidden [@media(min-width:1024px)_and_(max-width:1100px)]:inline">{shortLabel}</span><span aria-hidden="true" className="hidden sm:inline [@media(min-width:1024px)_and_(max-width:1100px)]:hidden">{label === "Available" ? "Avl" : label}</span></button>)}
             <div className="min-w-0 max-w-16 shrink sm:max-w-36 [@media(min-width:1024px)_and_(max-width:1100px)]:max-w-16">
             <ViewerSelect label="Filter players by category" value={filterCategory} onChange={setFilterCategory} compactLabel={filterCategory === "all" ? "ALL" : undefined} options={[
               { value: "all", label: "All categories" },
