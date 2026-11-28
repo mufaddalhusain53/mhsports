@@ -3,6 +3,7 @@ import { isAdminAuthenticated, verifyAdminPin } from "@/lib/admin/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { isProjectorPlayerFields, type ProjectorPlayerField } from "@/lib/auction/projector-fields";
 import { isProjectorTheme, type ProjectorTheme } from "@/lib/auction/projector-theme";
+import { isViewerSquadView, type ViewerSquadView } from "@/lib/auction/viewer-squad-view";
 
 type Context = { params: Promise<{ slug: string }> };
 type AuctionAction =
@@ -20,8 +21,9 @@ type AuctionAction =
   | { action: "background"; backgroundUrl: string | null }
   | { action: "schedule"; scheduledDate: string | null }
   | { action: "rtm_visibility"; enabled: boolean }
-  | { action: "projector_player_fields"; fields: ProjectorPlayerField[] }
+  | { action: "projector_player_fields"; fields: ProjectorPlayerField[]; showCategory?: boolean }
   | { action: "projector_theme"; theme: ProjectorTheme }
+  | { action: "viewer_squad_view"; view: ViewerSquadView }
   | { action: "tournament_name"; name: string }
   | { action: "presentation"; tournamentLogoUrl: string | null; organizerLogoUrls: string[] }
   | { action: "set_mode"; mode: "trial" | "live"; adminPin?: string }
@@ -614,12 +616,28 @@ export async function PATCH(request: Request, { params }: Context) {
       if (!data) return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
       break;
     }
+    case "viewer_squad_view": {
+      if (!isViewerSquadView(action.view)) {
+        return NextResponse.json({ error: "Choose Cards or Field view." }, { status: 400 });
+      }
+      const { data, error } = await supabaseAdmin.from("auction_tournaments")
+        .update({ viewer_squad_view: action.view, updated_at: new Date().toISOString() })
+        .eq("id", tournament.id)
+        .select("id")
+        .maybeSingle();
+      if (error) return NextResponse.json({ error: `Unable to save viewer squad view: ${error.message}` }, { status: 500 });
+      if (!data) return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
+      break;
+    }
     case "projector_player_fields": {
       if (!isProjectorPlayerFields(action.fields)) {
         return NextResponse.json({ error: "Choose valid player detail fields without duplicates." }, { status: 400 });
       }
+      if (action.showCategory !== undefined && typeof action.showCategory !== "boolean") {
+        return NextResponse.json({ error: "Category visibility must be true or false." }, { status: 400 });
+      }
       const { data, error } = await supabaseAdmin.from("auction_tournaments")
-        .update({ projector_player_fields: action.fields, updated_at: new Date().toISOString() })
+        .update({ projector_player_fields: action.fields, ...(action.showCategory === undefined ? {} : { show_player_category: action.showCategory }), updated_at: new Date().toISOString() })
         .eq("id", tournament.id)
         .select("id")
         .maybeSingle();

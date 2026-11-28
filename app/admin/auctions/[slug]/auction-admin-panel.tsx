@@ -11,6 +11,7 @@ import { getAuctionBasePrice, upsertAuctionCategory } from "@/lib/auction/pricin
 import { AUCTION_DOMAIN, getAuctionOrigin } from "@/lib/auction/domains";
 import { PROJECTOR_PLAYER_FIELDS, type ProjectorPlayerField } from "@/lib/auction/projector-fields";
 import type { ProjectorTheme } from "@/lib/auction/projector-theme";
+import type { ViewerSquadView } from "@/lib/auction/viewer-squad-view";
 import { supabase } from "@/lib/supabase/client";
 
 type Team = { id: string; name: string; slug: string; logo_url: string | null; points_remaining: number; rtm_count: number };
@@ -26,7 +27,7 @@ type Tournament = {
   id: string; slug: string; name: string; status: string; auction_mode: "trial" | "live"; scheduled_date: string | null; rtm_enabled: boolean; points_per_team: number; base_price: number;
   bid_increment: number; bid_increment_rules: IncrementRule[]; min_squad_size: number; max_squad_size: number; current_player_id: string | null;
   current_bid: number | null; current_bid_team_id: string | null; background_url: string | null;
-  tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[]; projector_theme: ProjectorTheme;
+  tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[]; show_player_category: boolean; projector_theme: ProjectorTheme; viewer_squad_view: ViewerSquadView;
 };
 type AuctionData = { tournament: Tournament; teams: Team[]; players: Player[]; sponsors: Sponsor[]; categories: AuctionCategory[] };
 type PlayerFormData = Omit<Player, "category_id" | "status" | "sold_team_id" | "sold_price" | "rtm_team_id">;
@@ -101,7 +102,9 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [scheduledDate, setScheduledDate] = useState("");
   const [rtmEnabled, setRtmEnabled] = useState(true);
   const [projectorFields, setProjectorFields] = useState<ProjectorPlayerField[]>(() => PROJECTOR_PLAYER_FIELDS.map((field) => field.id));
+  const [showPlayerCategory, setShowPlayerCategory] = useState(true);
   const [projectorTheme, setProjectorTheme] = useState<ProjectorTheme>("classic");
+  const [viewerSquadView, setViewerSquadView] = useState<ViewerSquadView>("cards");
   const [setupTab, setSetupTab] = useState<SetupTab>("overview");
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorTitle, setSponsorTitle] = useState("");
@@ -115,6 +118,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
   const [appliedSelectionCategory, setAppliedSelectionCategory] = useState("");
   const [playerPoolFilter, setPlayerPoolFilter] = useState("");
   const [playerPoolSearchMode, setPlayerPoolSearchMode] = useState<"name" | "number">("name");
+  const [playerPoolExpanded, setPlayerPoolExpanded] = useState(false);
   const [bidDraft, setBidDraft] = useState<{ key: string; value: string } | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<PlayerFormData | null>(null);
   const [editingTeam, setEditingTeam] = useState<TeamFormData | null>(null);
@@ -146,7 +150,9 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
     setScheduledDate(result.tournament.scheduled_date ?? "");
     setRtmEnabled(result.tournament.rtm_enabled);
     setProjectorFields(result.tournament.projector_player_fields);
+    setShowPlayerCategory(result.tournament.show_player_category);
     setProjectorTheme(result.tournament.projector_theme);
+    setViewerSquadView(result.tournament.viewer_squad_view);
     setIncrementRules(incrementRulesFor(result.tournament));
   }, [slug]);
 
@@ -165,7 +171,9 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           setScheduledDate(result.tournament.scheduled_date ?? "");
           setRtmEnabled(result.tournament.rtm_enabled);
           setProjectorFields(result.tournament.projector_player_fields);
+          setShowPlayerCategory(result.tournament.show_player_category);
           setProjectorTheme(result.tournament.projector_theme);
+          setViewerSquadView(result.tournament.viewer_squad_view);
           setIncrementRules(incrementRulesFor(result.tournament));
         }
       })
@@ -949,7 +957,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
         </section>
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-black text-slate-900">RTM enabled league</h2>
-          <p className="mt-1 text-sm text-slate-600">Controls RTM visibility on viewer pages. It does not change auction rules or team RTM counts.</p>
+          <p className="mt-1 text-sm text-slate-600">Controls RTM visibility on viewer pages and the RTM action in the auction console. It does not change auction rules or team RTM counts.</p>
           <div className="mt-4 flex flex-wrap items-end gap-3">
             <label className="block text-xs font-bold text-slate-600">RTM enabled
               <select value={rtmEnabled ? "yes" : "no"} onChange={(event) => setRtmEnabled(event.target.value === "yes")} className={inputClass} disabled={busy}>
@@ -958,6 +966,19 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
               </select>
             </label>
             <button type="button" className={buttonClass} disabled={busy} onClick={() => void action({ action: "rtm_visibility", enabled: rtmEnabled })}>Save RTM setting</button>
+          </div>
+        </section>
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-black text-slate-900">Viewer squad view</h2>
+          <p className="mt-1 text-sm text-slate-600">Choose how team squads appear to viewers. Field positions are illustrative.</p>
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="block text-xs font-bold text-slate-600">Squad view
+              <select value={viewerSquadView} onChange={(event) => setViewerSquadView(event.target.value === "field" ? "field" : "cards")} className={inputClass} disabled={busy}>
+                <option value="cards">Cards</option>
+                <option value="field">Field view</option>
+              </select>
+            </label>
+            <button type="button" className={buttonClass} disabled={busy} onClick={() => void action({ action: "viewer_squad_view", view: viewerSquadView })}>Save squad view</button>
           </div>
         </section>
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -978,16 +999,20 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           <p className="mt-1 text-sm text-slate-600">Choose which details appear on the projector and viewer pages. The player name always remains visible.</p>
           <fieldset className="mt-4 flex flex-wrap gap-x-6 gap-y-3" disabled={busy}>
             <legend className="sr-only">Projector player detail fields</legend>
+            <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
+              <input type="checkbox" checked={showPlayerCategory} onChange={(event) => setShowPlayerCategory(event.target.checked)} className="h-4 w-4 accent-orange-600" />
+              Category
+            </label>
             {PROJECTOR_PLAYER_FIELDS.map((field) => <label key={field.id} className="flex items-center gap-2 text-sm font-bold text-slate-700">
               <input type="checkbox" checked={projectorFields.includes(field.id)} onChange={(event) => setProjectorFields((current) => event.target.checked ? [...current, field.id] : current.filter((id) => id !== field.id))} className="h-4 w-4 accent-orange-600" />
               {field.label}
             </label>)}
           </fieldset>
-          <button type="button" className={`${buttonClass} mt-4`} disabled={busy} onClick={() => void action({ action: "projector_player_fields", fields: projectorFields })}>Save player detail fields</button>
+          <button type="button" className={`${buttonClass} mt-4`} disabled={busy} onClick={() => void action({ action: "projector_player_fields", fields: projectorFields, showCategory: showPlayerCategory })}>Save player detail fields</button>
         </section>
         </>}
 
-        <div className={`mt-7 grid gap-6 ${setupTab === "branding" || setupTab === "rules" ? "lg:grid-cols-2" : "lg:grid-cols-1"} ${setupTab === "overview" || setupTab === "players" ? "hidden" : ""}`}>
+        <div className={`mt-7 grid gap-6 ${setupTab === "branding" || setupTab === "rules" ? "lg:grid-cols-2" : "lg:grid-cols-1"} ${setupTab === "overview" ? "hidden" : ""}`}>
           {setupTab === "branding" && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-black text-slate-900">Public page background</h2>
             <p className="mt-1 text-sm text-slate-600">Choose the background shown on the owner/viewer page and projector. For projection, use a landscape, high-resolution image.</p>
@@ -1063,7 +1088,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
                 <button disabled={busy || data.tournament.status !== "setup"} className={buttonClass}>Add team</button>
               </div>
             </form>
-            <div className="mt-4 grid gap-2">{data.teams.map((team) => <div key={team.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex min-w-0 items-center gap-3"><TeamMark name={team.name} logoUrl={team.logo_url} size="sm" /><div><p className="font-bold text-slate-900">{team.name}</p><p className="text-xs text-slate-500">{team.points_remaining} pts remaining</p></div></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => setEditingTeam({ id: team.id, name: team.name, logo_url: team.logo_url, rtm_count: team.rtm_count ?? 0 })} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit team</button><button type="button" disabled={busy || data.tournament.status !== "setup"} onClick={() => void deleteTeam(team)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button></div></div>)}</div>
+            <div className="mt-4 grid gap-2">{data.teams.map((team) => <div key={team.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex min-w-0 items-center gap-3"><TeamMark name={team.name} logoUrl={team.logo_url} size="sm" /><div><p className="font-bold text-slate-900">{team.name}</p><p className="text-xs text-slate-500">{team.points_remaining} remaining</p></div></div><div className="flex gap-2"><button type="button" disabled={busy} onClick={() => setEditingTeam({ id: team.id, name: team.name, logo_url: team.logo_url, rtm_count: team.rtm_count ?? 0 })} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Edit team</button><button type="button" disabled={busy || data.tournament.status !== "setup"} onClick={() => void deleteTeam(team)} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Delete</button></div></div>)}</div>
             {data.tournament.status !== "setup" && <p className="mt-3 text-xs text-slate-500">Team names and logos remain editable after the auction begins. Adding or deleting teams is available before it starts.</p>}
           </section>}
 
@@ -1130,23 +1155,17 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
           {data.tournament.status === "live" && (
             <>
               <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">Player queue</p>
-                    <h3 className="mt-1 text-lg font-extrabold text-white">Choose who goes on the block</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" className={`min-h-11 rounded-xl border px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${queueSettingsDirty ? "border-orange-300 bg-orange-400/10 text-orange-200 hover:bg-orange-400/20" : "border-white/10 bg-white/5 text-slate-400"}`} disabled={busy || !queueSettingsDirty} onClick={applyQueueSettings}>{queueSettingsDirty ? "Apply changes" : "Applied"}</button>
-                    {!currentPlayer && (availablePlayers.length === 0 ? <span className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-slate-300">No available players</span> : <button type="button" className={`${buttonClass} min-h-11 rounded-xl px-5`} disabled={busy || pendingBids > 0 || queueSettingsDirty || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Select 1st Player<span className="ml-2" aria-hidden="true">→</span></button>)}
-                  </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">Player queue</p>
                 </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-300">Selection method<select value={selectionMode} onChange={(event) => setSelectionMode(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-sm font-normal text-white outline-none focus:border-orange-500"><option value="random">Random player</option><option value="sequence">Player number order</option></select></label>
-                  <label className="text-xs font-bold text-slate-300">Category filter<select value={selectionCategory} onChange={(event) => setSelectionCategory(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-sm font-normal text-white outline-none focus:border-orange-500"><option value="">All categories</option>{playerCategories.map((category) => <option key={category}>{category}</option>)}</select></label>
+                <div className="mt-2 grid grid-cols-2 items-end gap-2 sm:gap-3">
+                  <label className="min-w-0 text-xs font-bold text-slate-300"><span className="sr-only">Selection method</span><select value={selectionMode} onChange={(event) => setSelectionMode(event.target.value)} className="mt-1 h-11 w-full min-w-0 rounded-xl border border-white/15 bg-slate-950 px-2 text-xs font-normal text-white outline-none focus:border-orange-500 sm:px-3 sm:text-sm"><option value="random">Random player</option><option value="sequence">Player number order</option></select></label>
+                  <label className="min-w-0 text-xs font-bold text-slate-300">Category filter<select value={selectionCategory} onChange={(event) => setSelectionCategory(event.target.value)} className="mt-1 h-11 w-full min-w-0 rounded-xl border border-white/15 bg-slate-950 px-2 text-xs font-normal text-white outline-none focus:border-orange-500 sm:px-3 sm:text-sm"><option value="">All categories</option>{playerCategories.map((category) => <option key={category}>{category}</option>)}</select></label>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs text-slate-400">{queueSettingsDirty ? "Queue settings changed. Click Apply changes before selecting the next player." : appliedSelectionMode === "random" ? "A random available player is selected." : "Selects the lowest-numbered available player."} {currentPlayer?.status === "available" && "Calling another player replaces the current player without recording a result."}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button type="button" className={`min-h-11 rounded-xl border px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${queueSettingsDirty ? "border-orange-300 bg-orange-400/10 text-orange-200 hover:bg-orange-400/20" : "border-white/10 bg-white/5 text-slate-400"}`} disabled={busy || !queueSettingsDirty} onClick={applyQueueSettings}>{queueSettingsDirty ? "Apply changes" : "Applied"}</button>
                   <button type="button" className="rounded-xl border border-orange-300/30 bg-orange-400/10 px-4 py-2.5 text-sm font-bold text-orange-200 transition hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-40" disabled={busy || unsoldPlayers === 0} onClick={() => void reauctionUnsoldPlayers()}>Re-auction unsold <span className="ml-1 rounded-full bg-orange-300/20 px-2 py-0.5 text-xs">{unsoldPlayers}</span></button>
+                  {!currentPlayer && (availablePlayers.length === 0 ? <span className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-slate-300">No available players</span> : <button type="button" className={`${buttonClass} min-h-11 rounded-xl px-5`} disabled={busy || pendingBids > 0 || queueSettingsDirty || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Select 1st Player<span className="ml-2" aria-hidden="true">→</span></button>)}
                 </div>
               </div>
               <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 p-4 sm:p-5">
@@ -1155,23 +1174,37 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
                   {currentPlayer && <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wide ${currentPlayer.status === "available" ? "bg-emerald-400/15 text-emerald-300" : currentPlayer.status === "sold" ? "bg-sky-400/15 text-sky-300" : "bg-rose-400/15 text-rose-300"}`}>{currentPlayer.status === "available" ? "Bidding open" : currentPlayer.status}</span>}
                 </div>
                 {currentPlayer ? <>
-                  <div className="relative flex min-h-28 items-center gap-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-white/10 to-white/5 p-4 sm:p-5">
+                  <div role="group" aria-label="Current player and bid" className="relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-white/10 to-white/5 p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
                     {currentPlayer.status !== "available" && <AuctionResultTag status={currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} />}
-                    {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={88} height={88} className="h-20 w-20 shrink-0 rounded-2xl border border-white/10 object-cover sm:h-24 sm:w-24" /> : <div className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-orange-400/15 text-2xl font-black text-orange-200 sm:h-24 sm:w-24">{currentPlayer.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>}
-                    <div className="min-w-0"><p className="text-xs font-black uppercase tracking-wider text-orange-300">#{currentPlayer.player_number} <span className="mx-1 text-white/30">·</span> {currentPlayer.category}</p><p className="mt-1 truncate text-2xl font-black tracking-tight text-white sm:text-3xl">{currentPlayer.full_name}</p><p className="mt-1 text-sm text-slate-300">{currentPlayer.role || "Player"}{currentPlayer.previous_team ? ` · ${currentPlayer.previous_team}` : ""}</p></div>
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={80} height={80} className="h-16 w-16 shrink-0 rounded-xl border border-white/10 object-cover sm:h-20 sm:w-20" /> : <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-orange-400/15 text-xl font-black text-orange-200 sm:h-20 sm:w-20">{currentPlayer.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>}
+                      <div className="min-w-0"><p className="text-xs font-black uppercase tracking-wider text-orange-300">#{currentPlayer.player_number} <span className="mx-1 text-white/30">·</span> {currentPlayer.category}</p><p className="mt-1 break-words text-xl font-black tracking-tight text-white sm:text-2xl">{currentPlayer.full_name}</p><p className="mt-1 break-words text-sm text-slate-300">{currentPlayer.role || "Player"}{currentPlayer.previous_team ? ` · ${currentPlayer.previous_team}` : ""}</p></div>
+                    </div>
+                    {currentPlayer.status === "available" && <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0 sm:items-center">
+                      <div className="min-w-0 rounded-xl border border-orange-300/20 bg-slate-950/45 px-3 py-2 sm:min-w-36">
+                        <p className="break-words text-[10px] font-bold uppercase tracking-wide text-slate-300">{currentTeam ? `Highest bid · ${currentTeam.name}` : "Opening price"}</p>
+                        <p className="mt-0.5 break-words text-2xl font-black tracking-tight text-orange-300 sm:text-3xl">{data.tournament.current_bid ?? currentBasePrice}</p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 sm:text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Bid increment</p>
+                        <p className="mt-0.5 text-lg font-black text-white">{incrementForBid(data.tournament, data.tournament.current_bid ?? currentBasePrice)}</p>
+                      </div>
+                    </div>}
                   </div>
                   {currentPlayer.status === "sold" ? <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div>
                       <p className="text-3xl font-black text-white">{currentPlayer.sold_price ?? 0} <span className="text-sm text-slate-400">points</span></p>
                       <p className="mt-1 text-sm text-slate-300">Sold to {soldTeam?.name ?? "team"}.</p>
                     </div>
-                    <div className="flex flex-wrap gap-2"><button type="button" disabled={busy} className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-sm font-black text-amber-200 hover:bg-amber-300/20 disabled:opacity-50" onClick={() => setPendingRTMPlayer(currentPlayer)}>RTM</button><button type="button" disabled={busy} className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10 disabled:opacity-50" onClick={() => void action({ action: "select_player", playerId: currentPlayer.id })}>Re-Auction</button><button type="button" disabled={busy || pendingBids > 0 || queueSettingsDirty || !canSelectNextPlayer} className="rounded-xl border border-yellow-300 bg-yellow-400 px-4 py-2.5 text-sm font-extrabold text-slate-950 shadow-sm transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void selectPlayer()}>Next Player <span aria-hidden="true">→</span></button></div>
+                    <div className="flex flex-wrap gap-2">{data.tournament.rtm_enabled !== false && <button type="button" disabled={busy} className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-sm font-black text-amber-200 hover:bg-amber-300/20 disabled:opacity-50" onClick={() => setPendingRTMPlayer(currentPlayer)}>RTM</button>}<button type="button" disabled={busy} className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10 disabled:opacity-50" onClick={() => void action({ action: "select_player", playerId: currentPlayer.id })}>Re-Auction</button><button type="button" disabled={busy || pendingBids > 0 || queueSettingsDirty || !canSelectNextPlayer} className="rounded-xl border border-yellow-300 bg-yellow-400 px-4 py-2.5 text-sm font-extrabold text-slate-950 shadow-sm transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void selectPlayer()}>Next Player <span aria-hidden="true">→</span></button></div>
                   </div> : currentPlayer.status === "unsold" ? <div className="mt-4 flex flex-wrap gap-2">
                     <button type="button" className={buttonClass + " rounded-xl"} disabled={busy || queueSettingsDirty || !canSelectNextPlayer} onClick={() => void selectPlayer()}>Next player</button>
                     <button type="button" disabled={busy} className="rounded-xl border border-orange-300/30 bg-orange-300/10 px-4 py-2.5 text-sm font-black text-orange-200 hover:bg-orange-300/20 disabled:opacity-50" onClick={() => void reauctionUnsoldPlayers()}>Re-auction all unsold</button>
                   </div> : <>
-                    <div className="mt-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{currentTeam ? `Highest bid · ${currentTeam.name}` : "Opening price"}</p><p className="mt-1 text-4xl font-black tracking-tight text-orange-300 sm:text-5xl">{data.tournament.current_bid ?? currentBasePrice}<span className="ml-2 text-sm font-bold text-slate-400">pts</span></p></div><div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-right"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Bid increment</p><p className="mt-1 text-lg font-black text-white">{incrementForBid(data.tournament, data.tournament.current_bid ?? currentBasePrice)} pts</p></div></div>
-                    <label className="mt-4 block text-xs font-bold text-slate-300">Set bid amount<div className="mt-1 flex max-w-md overflow-hidden rounded-xl border border-white/15 bg-white text-slate-900 shadow-inner"><button type="button" aria-label="Decrease bid" onClick={() => adjustBid("down")} disabled={Number(bidAmount) <= minimumSelectableBid} className="w-12 border-r border-slate-200 text-xl font-black text-slate-700 disabled:opacity-40">−</button><input aria-label="Bid amount" value={bidAmount} onChange={(event) => setBidDraft({ key: bidDraftKey, value: event.target.value })} onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); adjustBid(event.key === "ArrowUp" ? "up" : "down"); } }} type="number" min={minimumSelectableBid} step="any" className="bid-amount h-12 min-w-0 flex-1 px-3 text-lg font-black outline-none" /><button type="button" aria-label="Increase bid" onClick={() => adjustBid("up")} className="w-12 border-l border-slate-200 text-xl font-black text-slate-700">+</button></div></label>
+                    <div className="mt-3 max-w-xs">
+                      <label htmlFor="bid-amount" className="block text-xs font-bold text-slate-300">Set bid amount</label>
+                      <div className="mt-1 flex overflow-hidden rounded-xl border border-white/15 bg-white text-slate-900 shadow-inner"><button type="button" aria-label="Decrease bid" onClick={() => adjustBid("down")} disabled={Number(bidAmount) <= minimumSelectableBid} className="w-11 border-r border-slate-200 text-xl font-black text-slate-700 disabled:opacity-40">−</button><input id="bid-amount" aria-label="Bid amount" value={bidAmount} onChange={(event) => setBidDraft({ key: bidDraftKey, value: event.target.value })} onKeyDown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); adjustBid(event.key === "ArrowUp" ? "up" : "down"); } }} type="number" min={minimumSelectableBid} step="any" className="bid-amount h-11 min-w-0 flex-1 px-3 text-base font-black outline-none" /><button type="button" aria-label="Increase bid" onClick={() => adjustBid("up")} className="w-11 border-l border-slate-200 text-xl font-black text-slate-700">+</button></div>
+                    </div>
                     {data.tournament.current_bid != null && <p className="mt-2 text-xs text-slate-400">To correct the bid, enter a lower amount and select the team. Higher bids follow the configured increment.</p>}
                     <div className="mt-4">
                       <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Choose a team to place the bid{pendingBids > 0 ? " · Updating" : ""}</p>
@@ -1179,7 +1212,8 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
                         const maxBid = maximumBidForTeam(team);
                         const overBudget = Number(bidAmount) > maxBid;
                         const atCategoryLimit = categoryLimitReached(team);
-                        return <button key={team.id} type="button" disabled={busy || pendingBids > 0 || Number(bidAmount) < minimumSelectableBid || overBudget || atCategoryLimit} title={atCategoryLimit ? `Maximum ${currentCategory?.max_players ?? 0} players in this category` : `Maximum bid ${maxBid} · reserve ${reserveForTeam(team)}`} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-2.5 text-left transition hover:border-orange-300/50 hover:bg-orange-400/10 disabled:cursor-not-allowed disabled:opacity-40 sm:p-3" onClick={() => void placeTeamBid(team)}><TeamMark name={team.name} logoUrl={team.logo_url} size="sm" /><span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-white">{team.name}</span><span className="mt-0.5 block text-[10px] font-semibold text-slate-400">{atCategoryLimit ? "Category full" : `Balance ${team.points_remaining} · Max ${maxBid}`}</span></span></button>;
+                        const leading = team.id === data.tournament.current_bid_team_id;
+                        return <button key={team.id} type="button" disabled={busy || pendingBids > 0 || Number(bidAmount) < minimumSelectableBid || overBudget || atCategoryLimit} title={atCategoryLimit ? `Maximum ${currentCategory?.max_players ?? 0} players in this category` : `Maximum bid ${maxBid} · reserve ${reserveForTeam(team)}`} className={`flex min-w-0 items-center gap-2 rounded-xl border p-2.5 text-left transition disabled:cursor-not-allowed sm:p-3 ${leading ? "border-emerald-400/80 bg-emerald-500/20 ring-1 ring-emerald-400/50 disabled:opacity-70" : "border-white/10 bg-white/5 hover:border-orange-300/50 hover:bg-orange-400/10 disabled:opacity-40"}`} onClick={() => void placeTeamBid(team)}><TeamMark name={team.name} logoUrl={team.logo_url} size="sm" /><span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-white">{team.name}</span>{leading && <span className="block text-[10px] font-black uppercase text-emerald-300">Highest bid</span>}<span className="mt-0.5 block text-[10px] font-semibold text-slate-400">{atCategoryLimit ? "Category full" : `Balance ${team.points_remaining} · Max ${maxBid}`}</span></span></button>;
                       })}</div>
                     </div>
                     <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -1197,8 +1231,12 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
         {view === "run" && <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col justify-between gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center">
             <div><h2 className="font-black text-slate-900">Player pool status</h2>{data.tournament.status !== "setup" && <p className="mt-1 text-xs text-slate-500">Player imports are available before the auction starts.</p>}</div>
-            <label className={`inline-flex cursor-pointer items-center ${buttonClass} ${busy || data.tournament.status !== "setup" ? "cursor-not-allowed opacity-50" : ""}`}>{busy ? "Working…" : "Upload player list (Excel)"}<input type="file" accept=".xlsx,.xls" disabled={busy || data.tournament.status !== "setup"} className="sr-only" onChange={(event) => void importPlayers(event)} /></label>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" aria-expanded={playerPoolExpanded} aria-controls="player-pool-content" onClick={() => setPlayerPoolExpanded((expanded) => !expanded)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">{playerPoolExpanded ? "Hide player pool" : "Show player pool"} <span aria-hidden="true">{playerPoolExpanded ? "−" : "+"}</span></button>
+              <label className={`inline-flex cursor-pointer items-center ${buttonClass} ${busy || data.tournament.status !== "setup" ? "cursor-not-allowed opacity-50" : ""}`}>{busy ? "Working…" : "Upload player list (Excel)"}<input type="file" accept=".xlsx,.xls" disabled={busy || data.tournament.status !== "setup"} className="sr-only" onChange={(event) => void importPlayers(event)} /></label>
+            </div>
           </div>
+          <div id="player-pool-content" hidden={!playerPoolExpanded}>
           <div className="border-b border-slate-200 bg-slate-50 p-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
@@ -1223,6 +1261,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
               <tbody>{filteredPlayerPool.map((player) => <tr key={player.id} className={`border-t border-slate-100 ${currentPlayer?.id === player.id ? "bg-orange-50" : ""}`}><td className="p-3 font-bold">{player.player_number}</td><td className="p-3 font-semibold">{player.full_name}</td><td className="p-3">{player.category}</td><td className="p-3 capitalize">{player.status}</td><td className="p-3">{data.teams.find((team) => team.id === player.sold_team_id)?.name ?? "—"}</td><td className="p-3">{player.sold_price ?? "—"}</td><td className="flex gap-2 p-3"><button type="button" disabled={busy || data.tournament.status !== "live" || currentPlayer?.id === player.id} onClick={() => void selectPlayerFromTable(player)} className="rounded-lg border border-orange-200 px-2 py-1 text-xs font-bold text-orange-800 disabled:opacity-50">{currentPlayer?.id === player.id ? "On block" : player.status === "available" ? "Call player" : "Re-auction"}</button><button type="button" disabled={busy} onClick={() => setEditingPlayer({ id: player.id, player_number: player.player_number, full_name: player.full_name, category: player.category, role: player.role, batting_style: player.batting_style, bowling_style: player.bowling_style, previous_team: player.previous_team, photo_url: player.photo_url })} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-bold disabled:opacity-50">Edit</button></td></tr>)}</tbody>
             </table>
           </div>
+          </div>
         </section>}
         {editingTeam && <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/60 p-4">
           <form onSubmit={saveTeam} className="my-auto w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
@@ -1245,7 +1284,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
             <div className="mt-5 flex justify-end gap-3"><button type="button" onClick={() => setEditingSponsor(null)} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold">Cancel</button><button disabled={busy} className={buttonClass}>{busy ? "Saving…" : "Save sponsor"}</button></div>
           </form>
         </div>}
-        {pendingRTMPlayer && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPendingRTMPlayer(null); }}>
+        {data.tournament.rtm_enabled !== false && pendingRTMPlayer && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPendingRTMPlayer(null); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="rtm-title" className="w-full max-w-xl animate-in zoom-in-95 rounded-2xl border border-white/70 bg-white p-6 shadow-2xl duration-200">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -1264,7 +1303,7 @@ export default function AuctionAdminPanel({ slug, view = "setup" }: { slug: stri
                 return <button key={team.id} type="button" disabled={busy || !isEligible} onClick={() => void applyTeamRTM(team)} className={`rounded-xl border p-3 text-left transition ${isEligible ? "border-amber-300 bg-amber-50 text-amber-900 hover:border-amber-400" : "border-slate-200 bg-slate-100 text-slate-400 opacity-60"}`}>
                   <div className="flex items-center justify-between gap-3"><span className="font-bold">{team.name}</span>{(team.rtm_count ?? 0) > 0 ? <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700">RTM x{team.rtm_count}</span> : <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Exhausted</span>}</div>
                   <p className="mt-2 text-xs">Max bid: {maximumBid}</p>
-                  <p className="text-xs">Balance: {team.points_remaining} pts</p>
+                  <p className="text-xs">Balance: {team.points_remaining}</p>
                 </button>;
               })}
             </div>

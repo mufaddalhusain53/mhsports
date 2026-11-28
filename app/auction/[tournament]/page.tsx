@@ -11,5 +11,5 @@ export default async function AuctionHomePage({ params }: { params: Promise<{ to
     .eq("slug", tournament)
     .maybeSingle();
   if (error) console.error("Unable to load tournament logo for the auction viewer:", error.message);
-  return <AuctionPublic key={tournament} slug={tournament} view="home" loadingLogoUrl={error ? undefined : data?.tournament_logo_url || "/mhsports-logo.png"} />;
+  return <AuctionPublic key={tournament} slug={tournament} view="home" loadingLogoUrl={error ? undefined : data?.tournament_logo_url || "/beyond-auctions-logo.png"} />;
 }

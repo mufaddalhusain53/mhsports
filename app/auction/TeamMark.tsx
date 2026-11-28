@@ -18,10 +18,10 @@ export default function TeamMark({
 }) {
   const sizeClass = size === "sm" ? "h-8 w-8 text-xs"
     : size === "lg" ? "h-24 w-24 text-3xl"
-    : size === "viewer" ? "h-16 w-16 text-xl sm:h-28 sm:w-28 sm:text-3xl"
+    : size === "viewer" ? "h-[clamp(5rem,24vw,6.5rem)] w-[clamp(5rem,24vw,6.5rem)] text-2xl sm:h-28 sm:w-28 sm:text-3xl lg:h-32 lg:w-32 2xl:h-36 2xl:w-36"
     : "h-14 w-14 text-lg";
   if (logoUrl) {
-    const dimension = size === "sm" ? 32 : size === "lg" ? 96 : size === "viewer" ? 112 : 56;
+    const dimension = size === "sm" ? 32 : size === "lg" ? 96 : size === "viewer" ? 144 : 56;
     return <AuctionImage src={logoUrl} alt={`${name} logo`} width={dimension} height={dimension} className={`${sizeClass} shrink-0 rounded-lg bg-white object-contain`} />;
   }
   return <span aria-label={`${name} logo`} className={`inline-grid shrink-0 place-items-center rounded-lg border border-orange-200 bg-gradient-to-br from-orange-100 to-amber-300 font-black tracking-wide text-orange-950 shadow-inner ${sizeClass}`}>{initials(name)}</span>;

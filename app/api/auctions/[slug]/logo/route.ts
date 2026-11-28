@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: Context) {
   if (error) return NextResponse.json({ error: `Unable to load tournament logo: ${error.message}` }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Auction tournament not found." }, { status: 404 });
 
-  return NextResponse.redirect(data.tournament_logo_url || new URL("/mhsports-logo.png", request.url), {
+  return NextResponse.redirect(data.tournament_logo_url || new URL("/beyond-auctions-logo.png", request.url), {
     headers: { "Cache-Control": "no-store" },
   });
 }

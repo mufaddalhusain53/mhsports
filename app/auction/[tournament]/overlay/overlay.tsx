@@ -39,29 +39,26 @@ function points(value: number | null | undefined) {
   return value === null || value === undefined ? "—" : Number(value).toLocaleString("en-IN");
 }
 
+function TeamRow({ team, leading }: { team: Team; leading: boolean }) {
+  return <div className={`youtube-overlay-team-row ${leading ? "youtube-overlay-leading-team" : ""}`}>
+    <div className="youtube-overlay-team-identity">
+      <TeamMark name={team.name} logoUrl={team.logo_url} size="sm" />
+      <div><strong>{team.name}</strong><span>{team.player_count} PLAYERS</span></div>
+    </div>
+    <div className="youtube-overlay-purse">
+      <span>PURSE LEFT</span>
+      <strong>{points(team.points_remaining)}</strong>
+    </div>
+  </div>;
+}
+
 export default function AuctionOverlay({ slug }: { slug: string }) {
   const [data, setData] = useState<OverlayData | null>(null);
   const [error, setError] = useState("");
-  const [teamSlideIndex, setTeamSlideIndex] = useState(0);
   const playerIdRef = useRef<string | null>(null);
   const leadingTeamId = data
     ? data.tournament.current_bid_team_id ?? (data.player?.status === "sold" ? data.player.sold_team_id : null)
     : null;
-  const hasLeadingTeam = Boolean(leadingTeamId && data?.teams.some((team) => team.id === leadingTeamId));
-  const teamPageSize = hasLeadingTeam ? 3 : 4;
-  const teamSlideCount = data && data.teams.length > 4
-    ? Math.ceil((data.teams.length - (hasLeadingTeam ? 1 : 0)) / teamPageSize)
-    : 1;
-  const activeTeamSlideIndex = teamSlideIndex % teamSlideCount;
-
-  useEffect(() => {
-    if (teamSlideCount <= 1) return;
-    const intervalId = window.setInterval(() => {
-      setTeamSlideIndex((current) => ((current % teamSlideCount) + 1) % teamSlideCount);
-    }, 6000);
-    return () => window.clearInterval(intervalId);
-  }, [teamSlideCount]);
-
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/auctions/${encodeURIComponent(slug)}/overlay`, { cache: "no-store" });
     const result = await response.json();
@@ -165,15 +162,9 @@ export default function AuctionOverlay({ slug }: { slug: string }) {
     if (right.id === teamId) return 1;
     return right.points_remaining - left.points_remaining;
   });
-  const pinnedTeam = hasLeadingTeam ? sortedTeams.find((team) => team.id === teamId) : undefined;
-  const rotatingTeams = pinnedTeam ? sortedTeams.filter((team) => team.id !== pinnedTeam.id) : sortedTeams;
-  const visibleTeams = teams.length > 4
-    ? [
-      ...(pinnedTeam ? [pinnedTeam] : []),
-      ...rotatingTeams.slice(activeTeamSlideIndex * teamPageSize, (activeTeamSlideIndex + 1) * teamPageSize),
-    ]
-    : sortedTeams;
+  const movingTeams = teams.length > 4;
   const result = player?.status === "sold" ? (player.rtm_team_id ? "RTM" : "SOLD") : player?.status === "unsold" ? "UNSOLD" : null;
+  const bidTeam = result === "UNSOLD" ? undefined : teams.find((team) => team.id === teamId);
   const bid = player?.status === "sold" ? player.sold_price : tournament.current_bid ?? (player ? getAuctionBasePrice(player, categories, tournament.base_price) : null);
   const statusLabel = tournament.status === "live" ? "LIVE AUCTION" : tournament.status === "completed" ? "AUCTION COMPLETE" : "AUCTION";
   const priceLabel = result ? (result === "UNSOLD" ? "UNSOLD AT" : "SOLD FOR") : tournament.current_bid === null ? "BASE PRICE" : "CURRENT BID";
@@ -207,30 +198,28 @@ export default function AuctionOverlay({ slug }: { slug: string }) {
                 <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18m5-13.5c0-1.7-2.2-3-5-3s-5 1.3-5 3 2.2 3 5 3 5 1.3 5 3-2.2 3-5 3-5-1.3-5-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
               </span>
               <span className="youtube-overlay-bid-label">{priceLabel}</span>
-              <strong>{points(bid)} <small>PTS</small></strong>
+              <strong>{points(bid)}</strong>
               {teamId && !result && <span className="youtube-overlay-highest">LEADING BID</span>}
               {result && <span className="youtube-overlay-highest">{result}</span>}
+              {bidTeam && <div className="youtube-overlay-bid-team" aria-label={`${result ? "Winning team" : "Leading team"}: ${bidTeam.name}`}>
+                <TeamMark name={bidTeam.name} logoUrl={bidTeam.logo_url} size="sm" />
+              </div>}
             </div>
           </div>
         </div>
 
         <div className="youtube-overlay-team-panel">
-          <div
-            key={activeTeamSlideIndex}
-            className={`youtube-overlay-team-rows${teams.length > 4 ? " youtube-overlay-team-rows-carousel" : ""}`}
-            aria-label={teams.length > 4 ? `Team group ${activeTeamSlideIndex + 1} of ${teamSlideCount}` : undefined}
-          >
-            {visibleTeams.map((item) => <div key={item.id} className={`youtube-overlay-team-row ${item.id === teamId ? "youtube-overlay-leading-team" : ""}`}>
-              <div className="youtube-overlay-team-identity">
-                <TeamMark name={item.name} logoUrl={item.logo_url} size="sm" />
-                <div><strong>{item.name}</strong><span>{item.player_count} PLAYERS</span></div>
+          {movingTeams ? <div className="youtube-overlay-moving-teams">
+            <div className="sponsor-strip youtube-overlay-team-strip" style={{ containerType: "inline-size" }} role="region" aria-label="Team balances" tabIndex={0}>
+              <div className="sponsor-strip-track" style={{ animationDuration: `${Math.ceil(sortedTeams.length / 2) * 12}s` }}>
+                {[false, true].map((duplicate) => <div key={String(duplicate)} className={`sponsor-strip-group youtube-overlay-scrolling-group${duplicate ? " sponsor-strip-duplicate" : ""}`} aria-hidden={duplicate || undefined}>
+                  {sortedTeams.map((team) => <TeamRow key={team.id} team={team} leading={team.id === teamId} />)}
+                </div>)}
               </div>
-              <div className="youtube-overlay-purse">
-                <span>PURSE LEFT</span>
-                <strong>{points(item.points_remaining)} <small>PTS</small></strong>
-              </div>
-            </div>)}
-          </div>
+            </div>
+          </div> : <div className="youtube-overlay-team-rows">
+            {sortedTeams.map((team) => <TeamRow key={team.id} team={team} leading={team.id === teamId} />)}
+          </div>}
         </div>
       </section>
       {error && <p role="alert" className="absolute right-4 top-4 rounded-lg bg-red-950/90 px-3 py-2 text-xs font-bold text-white">{error}</p>}

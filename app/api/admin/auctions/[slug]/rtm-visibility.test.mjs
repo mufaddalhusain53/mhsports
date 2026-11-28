@@ -13,6 +13,10 @@ const themeSource = readFileSync(new URL("../../../../../lib/auction/projector-t
 const themeCompiled = ts.transpileModule(themeSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
 const themeExports = {};
 new Function("exports", themeCompiled)(themeExports);
+const squadViewSource = readFileSync(new URL("../../../../../lib/auction/viewer-squad-view.ts", import.meta.url), "utf8");
+const squadViewCompiled = ts.transpileModule(squadViewSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+const squadViewExports = {};
+new Function("exports", squadViewCompiled)(squadViewExports);
 
 function createHandler({ authenticated = true, updateError = null, updated = true } = {}) {
   const updates = [];
@@ -21,6 +25,7 @@ function createHandler({ authenticated = true, updateError = null, updated = tru
     "@/lib/admin/auth": { isAdminAuthenticated: async () => authenticated },
     "@/lib/auction/projector-fields": fieldsExports,
     "@/lib/auction/projector-theme": themeExports,
+    "@/lib/auction/viewer-squad-view": squadViewExports,
     "@/lib/supabase/admin": {
       supabaseAdmin: {
         from: (table) => {
@@ -94,6 +99,25 @@ test("projector player fields save a selection or an empty list", async () => {
   }
 });
 
+test("player detail settings save category visibility independently of other fields", async () => {
+  const handler = createHandler();
+  for (const showCategory of [true, false]) {
+    const response = await handler.PATCH(new Request("http://localhost/api/admin/auctions/test", {
+      method: "PATCH",
+      body: JSON.stringify({ action: "projector_player_fields", fields: ["skill"], showCategory }),
+    }), context);
+    assert.equal(response.status, 200);
+    assert.equal(handler.updates.at(-1).values.show_player_category, showCategory);
+    assert.deepEqual(handler.updates.at(-1).values.projector_player_fields, ["skill"]);
+  }
+  const invalid = await handler.PATCH(new Request("http://localhost/api/admin/auctions/test", {
+    method: "PATCH",
+    body: JSON.stringify({ action: "projector_player_fields", fields: [], showCategory: "false" }),
+  }), context);
+  assert.equal(invalid.status, 400);
+  assert.equal(handler.updates.length, 2);
+});
+
 test("projector player fields reject invalid or duplicate selections", async () => {
   const handler = createHandler();
   for (const fields of [["unknown"], ["skill", "skill"], [null], "skill"]) {
@@ -139,6 +163,33 @@ test("projector theme reports authentication and database errors", async () => {
   const makeRequest = () => new Request("http://localhost/api/admin/auctions/test", {
     method: "PATCH",
     body: JSON.stringify({ action: "projector_theme", theme: "spotlight" }),
+  });
+  assert.equal((await createHandler({ authenticated: false }).PATCH(makeRequest(), context)).status, 401);
+  const response = await createHandler({ updateError: { message: "database unavailable" } }).PATCH(makeRequest(), context);
+  assert.equal(response.status, 500);
+  assert.match((await response.json()).error, /database unavailable/);
+  assert.equal((await createHandler({ updated: false }).PATCH(makeRequest(), context)).status, 404);
+});
+
+test("viewer squad view saves supported values and rejects invalid input", async () => {
+  const handler = createHandler();
+  const makeRequest = (view) => new Request("http://localhost/api/admin/auctions/test", {
+    method: "PATCH",
+    body: JSON.stringify({ action: "viewer_squad_view", view }),
+  });
+  for (const view of ["cards", "field"]) {
+    assert.equal((await handler.PATCH(makeRequest(view), context)).status, 200);
+    assert.equal(handler.updates.at(-1).values.viewer_squad_view, view);
+    assert.equal(handler.updates.at(-1).id, "tournament-1");
+  }
+  for (const view of ["other", "", null]) assert.equal((await handler.PATCH(makeRequest(view), context)).status, 400);
+  assert.equal(handler.updates.length, 2);
+});
+
+test("viewer squad view reports authentication and database errors", async () => {
+  const makeRequest = () => new Request("http://localhost/api/admin/auctions/test", {
+    method: "PATCH",
+    body: JSON.stringify({ action: "viewer_squad_view", view: "field" }),
   });
   assert.equal((await createHandler({ authenticated: false }).PATCH(makeRequest(), context)).status, 401);
   const response = await createHandler({ updateError: { message: "database unavailable" } }).PATCH(makeRequest(), context);

@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
+import DeveloperWatermark from "@/app/auction/DeveloperWatermark";
+import PlayerCard from "@/app/auction/PlayerCard";
 import TeamMark from "@/app/auction/TeamMark";
 import ViewerSelect from "@/app/auction/ViewerSelect";
 import SoldFireworks from "../sold-fireworks";
 import { sortSponsors } from "@/lib/auction/sponsors";
 import { getAuctionBasePrice, upsertAuctionCategory, type AuctionPriceCategory } from "@/lib/auction/pricing";
+import { displayPlayerCategory } from "@/lib/auction/player-category";
 import type { ProjectorPlayerField } from "@/lib/auction/projector-fields";
 import type { ProjectorTheme } from "@/lib/auction/projector-theme";
 import { supabase } from "@/lib/supabase/client";
@@ -20,9 +23,9 @@ type Player = {
 };
 type Sponsor = { id: string; name: string; sponsor_title: string | null; logo_url: string | null; display_order: number };
 type Tournament = {
-  id: string; slug: string; name: string; status: string; points_per_team: number; base_price: number; min_squad_size: number; max_squad_size: number;
+  id: string; slug: string; name: string; status: string; rtm_enabled: boolean; points_per_team: number; base_price: number; min_squad_size: number; max_squad_size: number;
   current_player_id: string | null; current_bid: number | null; current_bid_team_id: string | null;
-  background_url: string | null; tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[]; projector_theme: ProjectorTheme;
+  background_url: string | null; tournament_logo_url: string | null; organizer_logo_urls: string[]; projector_player_fields: ProjectorPlayerField[]; show_player_category: boolean; projector_theme: ProjectorTheme;
 };
 type Data = { tournament: Tournament; teams: Team[]; players: Player[]; categories: AuctionPriceCategory[]; sponsors: Sponsor[] };
 type Tab = "live" | "teams" | "players";
@@ -37,9 +40,11 @@ function maxBid(pointsRemaining: number, soldCount: number, minSquadSize: number
   return Math.max(0, pointsRemaining - reserve + rtmCount * basePrice);
 }
 
-function playerDetails(player: Player, fields: ProjectorPlayerField[], shouldDisplayCategory: boolean) {
-  const role = player.role?.trim() || (shouldDisplayCategory ? player.category.trim() : "");
+function playerDetails(player: Player, fields: ProjectorPlayerField[], showCategory: boolean) {
+  const role = player.role?.trim();
+  const category = displayPlayerCategory(player.category);
   return [
+    ...(showCategory && category ? [{ label: "Category", value: category }] : []),
     ...(fields.includes("skill") && role ? [{ label: "Player Role", value: role }] : []),
     ...(fields.includes("batting_style") && player.batting_style?.trim() ? [{ label: "Batting style", value: player.batting_style.trim() }] : []),
     ...(fields.includes("bowling_style") && player.bowling_style?.trim() ? [{ label: "Bowling style", value: player.bowling_style.trim() }] : []),
@@ -57,8 +62,6 @@ export default function AuctionProjector({ slug }: { slug: string }) {
   const [filterStatus, setFilterStatus] = useState<"all" | Player["status"]>("all");
   const [filterCategory, setFilterCategory] = useState("");
   const [logoIndex, setLogoIndex] = useState(0);
-  const [teamSummaryPage, setTeamSummaryPage] = useState(0);
-  const [listPage, setListPage] = useState(0);
   const playerListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -132,15 +135,6 @@ export default function AuctionProjector({ slug }: { slug: string }) {
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const pageCount = Math.ceil((data?.teams.length ?? 0) / 4);
-    if (pageCount <= 1) return;
-    const timer = window.setInterval(() => {
-      setTeamSummaryPage((page) => (page + 1) % pageCount);
-    }, 10000);
-    return () => window.clearInterval(timer);
-  }, [data?.teams.length]);
-
   const filteredPlayers = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     return (data?.players ?? []).filter((player) =>
@@ -190,18 +184,11 @@ export default function AuctionProjector({ slug }: { slug: string }) {
     team,
     squadSize: soldPlayers.filter((player) => player.sold_team_id === team.id).length,
   }));
-  const summaryPageCount = Math.max(1, Math.ceil(teamSummaries.length / 4));
-  const visibleTeamSummaries = teamSummaries.slice((teamSummaryPage % summaryPageCount) * 4, (teamSummaryPage % summaryPageCount) * 4 + 4);
-  const shouldDisplayCategory = categoryValues.length > 1;
-  const detailCards = currentPlayer ? playerDetails(currentPlayer, tournament.projector_player_fields, shouldDisplayCategory) : [];
+  const movingTeamSummary = teamSummaries.length > 4;
+  const detailCards = currentPlayer ? playerDetails(currentPlayer, tournament.projector_player_fields, tournament.show_player_category) : [];
   const selectedTeam = tab === "teams" ? teams.find((team) => team.id === selectedTeamId) : undefined;
   const displayedPlayers = selectedTeam ? soldPlayers.filter((player) => player.sold_team_id === selectedTeam.id) : filteredPlayers;
   const showingTeamList = tab === "teams" && !selectedTeam;
-  const pageSize = tab === "teams" ? 6 : 12;
-  const pageCount = Math.max(1, Math.ceil((showingTeamList ? teams.length : displayedPlayers.length) / pageSize));
-  const page = listPage % pageCount;
-  const visibleTeams = teams.slice(page * pageSize, page * pageSize + pageSize);
-  const visiblePlayers = selectedTeam ? displayedPlayers.slice(page * pageSize, page * pageSize + pageSize) : displayedPlayers;
   const backgroundStyle = tournament.background_url
     ? { backgroundImage: `linear-gradient(rgba(7, 45, 80, 0.16), rgba(8, 60, 100, 0.24)), url("${tournament.background_url.replace(/["\\]/g, "")}")` }
     : undefined;
@@ -209,8 +196,8 @@ export default function AuctionProjector({ slug }: { slug: string }) {
   return (
     <main id="auction-projector" style={backgroundStyle} className="relative h-dvh w-screen overflow-hidden bg-[#0b3554] bg-cover bg-center p-2 text-white">
       {tab === "live" && currentPlayer?.status === "sold" && <SoldFireworks />}
-      <div className="mx-auto flex h-full max-w-[1920px] flex-col gap-0 overflow-hidden rounded-xl bg-[linear-gradient(145deg,rgba(15,76,117,0.42),rgba(22,112,159,0.32)_55%,rgba(9,53,90,0.45))] shadow-[0_0_24px_rgba(125,211,252,0.2)]">
-        <header className="grid h-[20dvh] min-h-[150px] max-h-[250px] shrink-0 grid-cols-[1fr_auto_1fr] items-center bg-gradient-to-r from-sky-900/40 via-blue-800/35 to-sky-900/40 px-4 sm:px-6">
+      <div className="mx-auto flex h-full max-w-[1920px] flex-col gap-0 overflow-hidden rounded-xl shadow-[0_0_24px_rgba(125,211,252,0.2)]">
+        <header className="grid h-[20dvh] min-h-[150px] max-h-[250px] shrink-0 grid-cols-[1fr_auto_1fr] items-center px-4 sm:px-6">
           <div className="flex h-full items-center justify-start overflow-hidden">{organizerLogo && <AuctionImage src={organizerLogo} alt="Tournament organizer" width={520} height={520} className="h-[16dvh] max-h-[220px] w-auto max-w-[26vw] object-contain drop-shadow-[0_0_30px_rgba(255,178,80,0.35)]" />}</div>
           <div className="flex min-w-0 items-center justify-center gap-2 text-center sm:gap-4">
             {tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt="Tournament logo" width={760} height={760} className="h-[18dvh] max-h-[240px] w-auto max-w-[42vw] object-contain drop-shadow-[0_0_36px_rgba(255,178,80,0.4)]" />}
@@ -226,6 +213,7 @@ export default function AuctionProjector({ slug }: { slug: string }) {
           </div>
         </header>
 
+        <div className="flex min-h-0 flex-1 flex-col bg-[linear-gradient(145deg,rgba(15,76,117,0.42),rgba(22,112,159,0.32)_55%,rgba(9,53,90,0.45))]">
         <section className="min-h-0 flex-1 overflow-hidden rounded-none bg-transparent p-0 relative">
           {tab === "live" && tournament.projector_theme === "spotlight" && <div className="grid h-full min-h-0 grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)] items-center gap-3 bg-slate-950/25 p-3 sm:gap-5 sm:px-6">
             {currentPlayer ? <section aria-label="Player profile" className="flex min-h-0 min-w-0 items-center gap-3 sm:gap-5">
@@ -298,7 +286,7 @@ export default function AuctionProjector({ slug }: { slug: string }) {
                   </p>
                 </div>
                 <p className="mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-white/80 sm:text-xs">
-                  Player #{currentPlayer.player_number}{shouldDisplayCategory ? ` · ${currentPlayer.category}` : ""}
+                  Player #{currentPlayer.player_number}
                 </p>
                 <div className="relative mt-2 rounded-xl bg-slate-950/20 p-1.5 shadow-[0_0_20px_rgba(125,211,252,0.32)] sm:p-2.5">
                   {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt={currentPlayer.full_name} width={420} height={560} className="h-[38dvh] max-h-[460px] w-[min(34dvh,24vw)] max-w-full rounded-lg object-cover" /> : <div className="grid h-[38dvh] max-h-[460px] w-[min(34dvh,24vw)] max-w-full place-items-center rounded-lg bg-white/10 text-5xl">🏏</div>}
@@ -333,27 +321,41 @@ export default function AuctionProjector({ slug }: { slug: string }) {
           </div>}
 
           {showingTeamList && <div className="flex h-full min-h-0 flex-col">
-            <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2 xl:grid-cols-3">
-              {visibleTeams.map((team) => {
+            <div className={`grid min-h-0 flex-1 auto-rows-[minmax(9rem,1fr)] grid-cols-2 gap-2 overflow-y-auto ${teams.length > 6 ? "md:grid-cols-3 xl:grid-cols-4" : "xl:grid-cols-3"}`}>
+              {teams.map((team) => {
                 const roster = soldPlayers.filter((player) => player.sold_team_id === team.id);
                 const spent = tournament.points_per_team - team.points_remaining;
                 const currentMax = maxBid(team.points_remaining, roster.length, tournament.min_squad_size, tournament.base_price, team.rtm_count ?? 0);
-                return <button type="button" key={team.id} aria-label={`View ${team.name} squad`} onClick={() => { setSelectedTeamId(team.id); setListPage(0); }} className="flex min-h-0 items-center gap-3 overflow-hidden rounded-[1rem] bg-slate-950/20 p-3 text-left backdrop-blur-[1px] transition hover:bg-slate-950/40 focus-visible:outline-2 focus-visible:outline-yellow-300 sm:gap-4 sm:p-4">
-                  <TeamMark name={team.name} logoUrl={team.logo_url} size="md" />
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-black uppercase sm:text-xl">{team.name}</p><p className="mt-1 text-xs text-white/70 sm:text-sm">{roster.length} players</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Spent {points(spent)}</p><p className="mt-1 text-[10px] font-bold text-white/70 sm:text-xs">Max {points(currentMax)}</p></div>
-                  <div className="text-right"><p className="text-lg font-black text-orange-300 sm:text-2xl">{points(team.points_remaining)}</p></div>
+                return <button type="button" key={team.id} aria-label={`View ${team.name} squad`} onClick={() => setSelectedTeamId(team.id)} className="flex min-h-0 flex-col justify-center gap-2 overflow-hidden rounded-[1rem] bg-slate-950/20 p-3 text-left backdrop-blur-[1px] transition hover:bg-slate-950/40 focus-visible:outline-2 focus-visible:outline-yellow-300 sm:p-4">
+                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <TeamMark name={team.name} logoUrl={team.logo_url} size="md" />
+                    <p className="line-clamp-2 min-w-0 flex-1 break-words text-sm font-black uppercase leading-tight sm:text-base">{team.name}</p>
+                    <div className="shrink-0 text-right">
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-white/70">Balance</p>
+                      <p className="text-base font-black text-orange-300 sm:text-xl">{points(team.points_remaining)}</p>
+                    </div>
+                  </div>
+                  <div className="grid w-full grid-cols-3 gap-1.5">
+                    {([["Players", roster.length, "text-cyan-200"], ["Spent", points(spent), "text-white"], ["Max bid", points(currentMax), "text-amber-200"]] as const).map(([label, value, color]) => <div key={label} className="min-w-0 rounded-lg border border-white/10 bg-slate-950/35 px-1.5 py-1 text-center sm:px-2">
+                      <p className="text-[9px] font-bold uppercase tracking-wide text-white/65">{label}</p>
+                      <p className={`break-all text-xs font-black leading-tight sm:text-sm ${color}`}>{value}</p>
+                    </div>)}
+                  </div>
                 </button>;
               })}
             </div>
-            {pageCount > 1 && <div className="flex shrink-0 items-center justify-center gap-4 pt-2"><button onClick={() => setListPage((page) => (page - 1 + pageCount) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">←</button><span className="text-xs font-bold">Page {page + 1} / {pageCount}</span><button onClick={() => setListPage((page) => (page + 1) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">→</button></div>}
           </div>}
 
           {(tab === "players" || selectedTeam) && <div className="flex h-full min-h-0 flex-col">
-            {selectedTeam && <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-3">
-                <button type="button" onClick={() => { setSelectedTeamId(null); setListPage(0); }} className="shrink-0 rounded-lg bg-white/15 px-3 py-2 text-xs font-bold hover:bg-white/25">← Back to teams</button>
+            {selectedTeam && <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-white/15 bg-blue-950/65 px-2 py-1.5 sm:px-3">
+              <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                <button type="button" onClick={() => setSelectedTeamId(null)} className="shrink-0 rounded-lg bg-white/15 px-3 py-2 text-xs font-bold hover:bg-white/25">← Back to teams</button>
                 <TeamMark name={selectedTeam.name} logoUrl={selectedTeam.logo_url} size="sm" />
-                <div className="min-w-0"><h2 className="truncate text-xl font-black sm:text-3xl">{selectedTeam.name} squad</h2><p className="text-xs text-white/70">{displayedPlayers.length} players · Balance {points(selectedTeam.points_remaining)} pts</p></div>
+                <h2 className="min-w-0 truncate text-lg font-black sm:text-2xl">{selectedTeam.name} Squad</h2>
+              </div>
+              <div className="flex shrink-0 items-stretch gap-2 text-center">
+                <div className="rounded-lg border border-cyan-300/30 bg-cyan-950/70 px-3 py-1"><p className="text-[9px] font-bold uppercase tracking-wide text-cyan-100">Squad size</p><p className="text-sm font-black text-white sm:text-lg">{displayedPlayers.length}/{tournament.max_squad_size}</p></div>
+                <div className="rounded-lg border border-amber-300/30 bg-amber-950/60 px-3 py-1"><p className="text-[9px] font-bold uppercase tracking-wide text-amber-100">Balance</p><p className="text-sm font-black text-yellow-300 sm:text-lg">{points(selectedTeam.points_remaining)}</p></div>
               </div>
             </div>}
             {!selectedTeam && <div className="relative z-10 mb-2 flex shrink-0 flex-wrap items-center gap-2 rounded-xl bg-blue-900/50 p-2">
@@ -365,64 +367,72 @@ export default function AuctionProjector({ slug }: { slug: string }) {
               <input value={search} onChange={(event) => { setSearch(event.target.value); resetPlayerScroll(); }} placeholder="Search players…" aria-label="Search players" className="h-8 min-w-28 flex-1 rounded-full bg-slate-950/35 px-3 text-xs text-white outline-none placeholder:text-white/60" />
               <p aria-live="polite" className="rounded-lg bg-slate-950/35 px-3 py-2 text-xs font-bold text-white">Players: {displayedPlayers.length} / {players.length}</p>
             </div>}
-            {selectedTeam && displayedPlayers.length === 0 && <p className="mt-4 text-sm text-white/75">No players in this squad yet.</p>}
-            <div id={selectedTeam ? undefined : "projector-player-list"} ref={selectedTeam ? undefined : playerListRef} role={selectedTeam ? undefined : "region"} aria-label={selectedTeam ? undefined : "Player list"} tabIndex={selectedTeam ? undefined : 0} className={`grid min-h-0 flex-1 grid-cols-2 gap-2 ${selectedTeam ? "auto-rows-fr sm:grid-cols-3" : "auto-rows-[minmax(6rem,auto)] content-start overflow-y-auto xl:grid-cols-4"}`}>
-              {visiblePlayers.map((player) => {
-                if (selectedTeam) return <article key={player.id} className="relative flex min-h-0 max-h-60 items-center gap-3 overflow-hidden rounded-xl border border-white/20 bg-slate-950/55 p-3 shadow-lg backdrop-blur-sm sm:gap-4">
+            {selectedTeam && displayedPlayers.length === 0 && <div className="flex min-h-0 flex-1 items-center justify-center">
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/20 bg-gradient-to-br from-blue-950/85 to-slate-950/75 px-8 py-8 text-center shadow-lg backdrop-blur-sm">
+                <TeamMark name={selectedTeam.name} logoUrl={selectedTeam.logo_url} size="lg" />
+                <div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">Squad update</p><p className="mt-1 text-lg font-black sm:text-2xl">No players picked yet</p></div>
+              </div>
+            </div>}
+            {(!selectedTeam || displayedPlayers.length > 0) && <div id={selectedTeam ? undefined : "projector-player-list"} ref={selectedTeam ? undefined : playerListRef} role="region" aria-label={selectedTeam ? "Team squad" : "Player list"} tabIndex={0} className={`grid min-h-0 flex-1 auto-rows-max content-start grid-cols-2 gap-2 overflow-y-auto ${selectedTeam ? "sm:grid-cols-3" : "xl:grid-cols-4"}`}>
+              {displayedPlayers.map((player) => {
+                if (selectedTeam) return <article key={player.id} className="relative flex min-h-36 items-center gap-3 overflow-hidden rounded-xl border border-white/20 bg-slate-950/55 p-3 shadow-lg backdrop-blur-sm sm:gap-4">
                   <span className="absolute left-1 top-1 z-10 rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-black text-white shadow-md sm:text-xs">#{player.player_number}</span>
                   {player.photo_url ? <AuctionImage src={player.photo_url} alt={player.full_name} width={160} height={160} className="h-20 w-20 shrink-0 rounded-lg border-2 border-white/40 object-cover sm:h-[min(16dvh,8vw,128px)] sm:w-[min(16dvh,8vw,128px)]" /> : <span className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border-2 border-white/30 bg-white/10 text-3xl sm:h-[min(16dvh,8vw,128px)] sm:w-[min(16dvh,8vw,128px)]">🏏</span>}
                   <div className="min-w-0">
                     <h3 className="line-clamp-2 text-sm font-black uppercase leading-tight sm:text-lg">{player.full_name}</h3>
                     <p className="mt-1 text-xs font-bold uppercase text-white/75">Points: <span className="text-base font-black text-cyan-300">{points(player.sold_price)}</span></p>
                     <div className="mt-1 text-[10px] font-bold uppercase leading-snug text-white/90 sm:text-xs">
-                      {playerDetails(player, tournament.projector_player_fields, shouldDisplayCategory).map((detail) => <p key={detail.label} className="truncate" title={`${detail.label}: ${detail.value}`}><span className="sr-only">{detail.label}: </span>{detail.value}</p>)}
+                      {playerDetails(player, tournament.projector_player_fields, tournament.show_player_category).map((detail) => <p key={detail.label} className="truncate" title={`${detail.label}: ${detail.value}`}><span className={detail.label === "Category" ? "text-cyan-200" : "sr-only"}>{detail.label}: </span>{detail.value}</p>)}
                     </div>
                   </div>
                 </article>;
-                const buyer = teams.find((team) => team.id === player.sold_team_id);
-                return <article key={player.id} className={`flex min-h-0 items-center gap-2 overflow-hidden rounded-[0.9rem] border p-2 backdrop-blur-[1px] sm:gap-3 sm:p-3 ${player.status === "sold" ? "border-green-400/60 bg-gradient-to-r from-green-900/80 to-slate-900/75" : player.status === "unsold" ? "border-red-300/70 bg-gradient-to-r from-red-900/75 to-slate-900/75" : "border-white/30 bg-slate-950/55"}`}>
-                  {player.photo_url ? <AuctionImage src={player.photo_url} alt="" width={64} height={64} className="h-10 w-10 shrink-0 rounded-lg object-cover sm:h-14 sm:w-14" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10 text-lg sm:h-14 sm:w-14 sm:text-xl">🏏</span>}
-                  <div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-1"><p className="truncate text-xs font-black sm:text-base">{player.full_name}</p><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black uppercase sm:text-[10px] ${player.status === "sold" ? "bg-green-500 text-white" : player.status === "unsold" ? "bg-red-400 text-red-950" : "bg-slate-300 text-slate-900"}`}>{player.status}</span></div><p className="truncate text-[10px] text-white/70 sm:text-xs">#{player.player_number}{shouldDisplayCategory ? ` · ${player.category}` : ""}</p><p className="truncate text-[9px] font-bold text-orange-200 sm:text-xs">{buyer ? `${buyer.name} · ${points(player.sold_price)} pts` : "—"}</p></div>
-                </article>;
+                return <PlayerCard key={player.id} player={player} teams={teams} rtmEnabled={tournament.rtm_enabled !== false} playerFields={tournament.projector_player_fields} showCategory={tournament.show_player_category} />;
               })}
-            </div>
-            {selectedTeam && pageCount > 1 && <div className="flex shrink-0 items-center justify-center gap-4 pt-2"><button onClick={() => setListPage((page) => (page - 1 + pageCount) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">←</button><span className="text-xs font-bold">Page {page + 1} / {pageCount}</span><button onClick={() => setListPage((page) => (page + 1) % pageCount)} className="rounded-lg bg-white/15 px-4 py-1 text-sm font-black">→</button></div>}
+            </div>}
           </div>}
         </section>
         <footer className="flex h-[14dvh] min-h-[88px] max-h-[140px] shrink-0 items-center gap-3 bg-gradient-to-r from-blue-950/55 via-blue-900/45 to-sky-900/40 px-3 shadow-[0_-8px_24px_rgba(56,189,248,0.2)] sm:gap-5 sm:px-6">
+          <div className="flex shrink-0 flex-col items-center gap-1">
           <nav aria-label="Projector controls" className="flex shrink-0 items-center gap-1 rounded-full bg-slate-950/50 p-1.5 backdrop-blur-sm sm:gap-2">
             {([
               ["live", "A"],
               ["teams", "T"],
               ["players", "P"],
               ["fullscreen", "F"],
-            ] as const).map(([key, label]) => <button key={key} onClick={() => { if (key === "fullscreen") { void toggleFullscreen(); return; } setTab(key); setSelectedTeamId(null); setListPage(0); }} aria-label={key === "live" ? "Live auction" : key === "teams" ? "Teams" : key === "players" ? "Players" : "Fullscreen"} className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black uppercase transition sm:h-10 sm:w-10 ${key === "fullscreen" ? "bg-orange-400 text-slate-950 shadow-none" : tab === key ? "bg-orange-400 text-slate-950 shadow-none" : "bg-slate-800/70 text-white/90 hover:bg-slate-700"}`}>{label}</button>)}
+            ] as const).map(([key, label]) => <button key={key} onClick={() => { if (key === "fullscreen") { void toggleFullscreen(); return; } setTab(key); setSelectedTeamId(null); }} aria-label={key === "live" ? "Live auction" : key === "teams" ? "Teams" : key === "players" ? "Players" : "Fullscreen"} className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-black uppercase transition sm:h-10 sm:w-10 ${key === "fullscreen" ? "bg-orange-400 text-slate-950 shadow-none" : tab === key ? "bg-orange-400 text-slate-950 shadow-none" : "bg-slate-800/70 text-white/90 hover:bg-slate-700"}`}>{label}</button>)}
           </nav>
+          <DeveloperWatermark compact />
+          </div>
           <section aria-label="Auction summary" className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <h2 className="shrink-0 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200 sm:text-xs">Auction summary</h2>
               <p className="min-w-0 truncate text-[10px] font-semibold text-white sm:text-xs">
                 {highestSoldPlayer
-                  ? <>Top sold: <span className="font-black text-yellow-300">{highestSoldPlayer.full_name}</span> · <span className="font-black">{points(highestSoldPlayer.sold_price)} pts</span>{highestSoldTeam ? ` · ${highestSoldTeam.name}` : ""}</>
+                  ? <>Top sold: <span className="font-black text-yellow-300">{highestSoldPlayer.full_name}</span> · <span className="font-black">{points(highestSoldPlayer.sold_price)}</span>{highestSoldTeam ? ` · ${highestSoldTeam.name}` : ""}</>
                   : "Top sold: No players sold yet"}
               </p>
-              {summaryPageCount > 1 && <span className="shrink-0 text-[9px] font-bold text-white/60">{(teamSummaryPage % summaryPageCount) + 1}/{summaryPageCount}</span>}
             </div>
-            <div className="flex min-w-0 items-stretch gap-2">
-              {visibleTeamSummaries.length ? visibleTeamSummaries.map(({ team, squadSize }) => <div key={team.id} className="flex min-w-0 flex-1 items-center gap-2 rounded-md bg-white/10 px-2 py-1.5">
-                <div className="shrink-0" title={team.name}><TeamMark name={team.name} logoUrl={team.logo_url} size="md" /></div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-1 text-[8px] font-bold uppercase tracking-wide text-white/70 sm:text-[9px]">
-                    <span>Balance</span><span className="text-sm font-black text-yellow-300 sm:text-base">{points(team.points_remaining)}</span>
+            {teamSummaries.length ? <div className="sponsor-strip min-w-0" style={{ containerType: "inline-size" }} role="region" aria-label="Team balances and squads" tabIndex={movingTeamSummary ? 0 : undefined}>
+              <div className={movingTeamSummary ? "sponsor-strip-track" : "w-full"} style={movingTeamSummary ? { animationDuration: `${teamSummaries.length * 12}s` } : undefined}>
+                {(movingTeamSummary ? [false, true] : [false]).map((duplicate) => <div key={String(duplicate)} className={movingTeamSummary ? `sponsor-strip-group${duplicate ? " sponsor-strip-duplicate" : ""}` : "flex w-full items-stretch gap-2"} aria-hidden={duplicate || undefined}>
+                  {teamSummaries.map(({ team, squadSize }) => <div key={team.id} style={movingTeamSummary ? { flex: "0 0 calc((100cqw - 1.5rem) / 4)" } : undefined} className={`flex min-w-0 items-center gap-2 rounded-md bg-white/10 px-2 py-1.5 ${movingTeamSummary ? "" : "flex-1"}`}>
+                    <div className="shrink-0" title={team.name}><TeamMark name={team.name} logoUrl={team.logo_url} size="md" /></div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1 text-[8px] font-bold uppercase tracking-wide text-white/70 sm:text-[9px]">
+                        <span>Balance</span><span className="text-sm font-black text-yellow-300 sm:text-base">{points(team.points_remaining)}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-1 text-[8px] font-bold uppercase tracking-wide text-white/70 sm:text-[9px]">
+                        <span>Squad</span><span className="font-black text-white">{squadSize}/{tournament.max_squad_size}</span>
+                      </div>
+                    </div>
+                  </div>)}
                   </div>
-                  <div className="mt-1 flex items-center justify-between gap-1 text-[8px] font-bold uppercase tracking-wide text-white/70 sm:text-[9px]">
-                    <span>Squad</span><span className="font-black text-white">{squadSize}/{tournament.max_squad_size}</span>
-                  </div>
-                </div>
-              </div>) : <p className="text-xs text-white/70">No teams configured.</p>}
-            </div>
+                )}
+              </div>
+            </div> : <p className="text-xs text-white/70">No teams configured.</p>}
           </section>
         </footer>
+        </div>
         {error && <p role="alert" className="fixed bottom-2 left-2 right-2 rounded-lg bg-red-950/90 px-4 py-2 text-sm font-bold text-white">{error}</p>}
       </div>
     </main>

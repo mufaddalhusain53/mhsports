@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import AuctionOverlay from "./overlay";
+
+export const metadata: Metadata = {
+  title: { absolute: "Beyond Auctions Overlay" },
+};
 
 export const instant = false;
 

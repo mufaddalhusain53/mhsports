@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import AuctionProjector from "./projector";
+
+export const metadata: Metadata = {
+  title: { absolute: "Beyond Auctions Projector" },
+};
 
 export const instant = false;
 
