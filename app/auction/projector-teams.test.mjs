@@ -24,6 +24,11 @@ new Function("require", "exports", cardCode)((name) => {
   if (name === "@/lib/auction/player-category") return categoryExports;
   return require(name);
 }, cardExports);
+const searchCode = ts.transpileModule(readFileSync(new URL("./PlayerSearch.tsx", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+}).outputText;
+const searchExports = {};
+new Function("require", "exports", searchCode)(require, searchExports);
 
 function renderProjector(teamCount, selectedTeam = false, options = {}) {
   const teams = Array.from({ length: teamCount }, (_, index) => ({
@@ -53,6 +58,7 @@ function renderProjector(teamCount, selectedTeam = false, options = {}) {
   new Function("require", "exports", code)((name) => {
     if (name === "react") return react;
     if (name === "@/app/auction/PlayerCard") return cardExports;
+    if (name === "@/app/auction/PlayerSearch") return searchExports;
     if (name === "@/app/auction/TeamMark") return { __esModule: true, default: ({ name, size }) => React.createElement("span", { "data-team": name, "data-size": size }) };
     if (name === "@/app/auction/DeveloperWatermark") return { __esModule: true, default: () => React.createElement("div", null, "Developed By Beyond Boundaries") };
     if (name === "@/lib/auction/pricing") return { getAuctionBasePrice: () => 0 };
@@ -152,4 +158,14 @@ test("projector player list uses viewer details and respects configured fields a
   const hidden = renderProjector(1, false, { tab: "players", players, playerFields: ["skill"], showCategory: false });
   assert.doesNotMatch(hidden, /Category: [AB]/);
   assert.match(hidden, /Bowler/);
+});
+
+test("dense viewer cards preserve long player details and sale information", () => {
+  const player = { player_number: 1, full_name: "A Very Long Player Name", category: "SuperLongCategory", role: "All Rounder", batting_style: "Right hand", bowling_style: "Spin", photo_url: null, status: "sold", sold_team_id: "team-0", sold_price: 12500, rtm_team_id: "team-0" };
+  const html = renderToStaticMarkup(React.createElement(cardExports.default, {
+    player, teams: [{ id: "team-0", name: "Team One" }], rtmEnabled: true,
+    playerFields: ["skill", "batting_style", "bowling_style"], showCategory: true, dense: true,
+  }));
+  for (const text of ["A Very Long Player Name", "Category: SuperLongCategory", "All Rounder", "Right hand", "Spin", "Team One · 12,500", "Player bought through RTM"]) assert.ok(html.includes(text));
+  assert.match(html, /<h3 class="[^"]*overflow-wrap:anywhere[^"]*">A Very Long Player Name<\/h3>/);
 });

@@ -5,6 +5,7 @@ import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import DeveloperWatermark from "@/app/auction/DeveloperWatermark";
 import PlayerCard from "@/app/auction/PlayerCard";
+import PlayerSearch from "@/app/auction/PlayerSearch";
 import TeamMark from "@/app/auction/TeamMark";
 import ViewerSelect from "@/app/auction/ViewerSelect";
 import SoldFireworks from "../sold-fireworks";
@@ -364,7 +365,7 @@ export default function AuctionProjector({ slug }: { slug: string }) {
                 { value: "", label: "All categories" },
                 ...categoryValues.map((category) => ({ value: category, label: category })),
               ]} />
-              <input value={search} onChange={(event) => { setSearch(event.target.value); resetPlayerScroll(); }} placeholder="Search players…" aria-label="Search players" className="h-8 min-w-28 flex-1 rounded-full bg-slate-950/35 px-3 text-xs text-white outline-none placeholder:text-white/60" />
+              <PlayerSearch value={search} onChange={(value) => { setSearch(value); resetPlayerScroll(); }} placeholder="Search players…" className="min-w-28 flex-1" />
               <p aria-live="polite" className="rounded-lg bg-slate-950/35 px-3 py-2 text-xs font-bold text-white">Players: {displayedPlayers.length} / {players.length}</p>
             </div>}
             {selectedTeam && displayedPlayers.length === 0 && <div className="flex min-h-0 flex-1 items-center justify-center">

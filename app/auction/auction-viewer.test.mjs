@@ -15,6 +15,11 @@ new Function("exports", categoryCode)(categoryExports);
 const code = ts.transpileModule(readFileSync(new URL("./[tournament]/auction-public.tsx", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
+const searchCode = ts.transpileModule(readFileSync(new URL("./PlayerSearch.tsx", import.meta.url), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+}).outputText;
+const searchExports = {};
+new Function("require", "exports", searchCode)(require, searchExports);
 
 function renderTeam(players, squadView = "cards", showCategory = true, screen = "overview", tournamentOverrides = {}, sponsors = []) {
   const states = [screen, "team-one", "unsold", "all", "no match", "home"];
@@ -29,7 +34,8 @@ function renderTeam(players, squadView = "cards", showCategory = true, screen = 
   new Function("require", "exports", `${code}\nexports.TestViewer = AuctionHomeViewer;`)((name) => {
     if (name === "react") return react;
     if (name === "react-dom") return { preload: () => {} };
-    if (name === "@/app/auction/PlayerCard") return { __esModule: true, default: ({ player }) => React.createElement("article", null, player.full_name) };
+    if (name === "@/app/auction/PlayerCard") return { __esModule: true, default: ({ player, dense }) => React.createElement("article", { "data-dense": dense || undefined }, player.full_name) };
+    if (name === "@/app/auction/PlayerSearch") return searchExports;
     if (name === "@/app/auction/DeveloperWatermark") return { __esModule: true, default: () => React.createElement("div", null, "Developed By Beyond Boundaries") };
     if (name === "@/app/auction/useMainSite") return { useMainSite: () => true };
     if (name === "@/lib/auction/pricing") return { getAuctionBasePrice: () => 0 };
@@ -48,13 +54,47 @@ function renderTeam(players, squadView = "cards", showCategory = true, screen = 
   }));
 }
 
-test("viewer places the watermark below the bidding panel on desktop and retains it on other views", () => {
+test("viewer places the watermark in bottom navigation on mobile and desktop", () => {
   const overview = renderTeam([]);
-  assert.match(overview, /<\/section><div class="mx-auto hidden w-fit[^"]*lg:block[^"]*"><div>Developed By Beyond Boundaries<\/div><\/div><\/aside>/);
-  assert.match(overview, /class="flex shrink-0 justify-center bg-blue-950\/95 py-1 lg:hidden"><div>Developed By Beyond Boundaries/);
   const sponsors = renderTeam([], "cards", true, "sponsors");
-  assert.match(sponsors, /class="flex shrink-0 justify-center bg-blue-950\/95 py-1 "><div>Developed By Beyond Boundaries/);
-  assert.doesNotMatch(sponsors, /mx-auto hidden w-fit/);
+  for (const html of [overview, sponsors]) {
+    assert.match(html, /aria-label="Viewer navigation">.*<div>Developed By Beyond Boundaries<\/div><\/nav>/);
+    assert.doesNotMatch(html.split('aria-label="Viewer navigation"')[0], /Developed By Beyond Boundaries/);
+  }
+});
+
+test("player filters have full accessible names and keep search and count together", () => {
+  const players = [
+    { id: "p1", full_name: "Player One", player_number: 1, category: "Gold", status: "sold" },
+    { id: "p2", full_name: "Player Two", player_number: 2, category: "Gold", status: "unsold" },
+    { id: "p3", full_name: "Player Three", player_number: 3, category: "Gold", status: "available" },
+  ];
+  const html = renderTeam(players, "cards", true, "players");
+  for (const [label, short] of [["Sold", "S"], ["Unsold", "U"], ["Available", "A"]]) {
+    assert.match(html, new RegExp(`aria-label="${label}" aria-pressed="(?:true|false)"[^>]*><span aria-hidden="true" class="sm:hidden [^"]*">${short}</span>`));
+    assert.match(html, new RegExp(`aria-label="${label}: 1"`));
+  }
+  assert.match(html, /<input[^>]*aria-label="Search players"[^>]*\/><\/div><span aria-label="0 of 3 players"[^>]*>0\/3<\/span><\/div>/);
+});
+
+test("viewer player list uses the dense responsive grid", () => {
+  const players = [{ id: "p1", full_name: "No Match Player", player_number: 1, category: "Gold", status: "unsold" }];
+  const html = renderTeam(players, "cards", true, "players");
+  assert.match(html, /class="grid grid-cols-2 gap-2 lg:grid-cols-4"><article data-dense="true">No Match Player<\/article>/);
+});
+
+test("category selector keeps the full accessible name when the trigger is abbreviated", () => {
+  const source = ts.transpileModule(readFileSync(new URL("./ViewerSelect.tsx", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText;
+  const exports = {};
+  new Function("require", "exports", source)(require, exports);
+  const html = renderToStaticMarkup(React.createElement(exports.default, {
+    label: "Filter players by category", value: "all", compactLabel: "ALL",
+    options: [{ value: "all", label: "All categories" }], onChange: () => {},
+  }));
+  assert.match(html, /aria-label="Filter players by category: All categories"/);
+  assert.match(html, /class="min-w-0 truncate sm:hidden [^"]*">ALL<\/span><span class="hidden max-w-28 truncate sm:inline [^"]*">All categories<\/span>/);
 });
 
 test("sponsor page displays each sponsor once and preserves optional links", () => {
@@ -82,12 +122,22 @@ test("bidding panel displays configured player details and hides disabled or emp
   const settings = { current_player_id: "p1", projector_player_fields: ["skill", "previous_team"] };
   const html = renderTeam([player], "cards", true, "overview", settings);
   assert.match(html, /class="absolute left-0 top-0[^"]*">#1<\/span>/);
-  assert.match(html, /class="min-w-0 text-center"><p[^>]*>Player One<\/p>.*?<dl class="mt-1 flex flex-wrap justify-center gap-1 lg:items-start">/);
+  assert.match(html, /class="min-w-0 text-center"><p[^>]*>Auction schedule<\/p><p[^>]*>Player One<\/p>.*?<dl class="mt-1 flex flex-wrap justify-center gap-1 lg:items-start">/);
   assert.match(html, /<dt[^>]*>Category<\/dt><dd[^>]*>Gold<\/dd>/);
   assert.match(html, /<dt[^>]*>Player Role<\/dt><dd[^>]*>All Rounder<\/dd>/);
   assert.match(html, /<dt[^>]*>Previous team<\/dt><dd[^>]*>Team Two<\/dd>/);
   const hidden = renderTeam([{ ...player, category: "None", previous_team: " " }], "cards", false, "overview", { ...settings, projector_player_fields: ["previous_team"] });
   assert.doesNotMatch(hidden, /<dt[^>]*>(Category|Player Role|Previous team)<\/dt>/);
+});
+
+test("auction status remains visible with or without a current player", () => {
+  const player = { id: "p1", full_name: "Player One", player_number: 1, category: "", status: "available" };
+  for (const [status, label] of [["live", "Auction is live"], ["paused", "Auction paused"], ["completed", "Auction completed"], ["setup", "Auction schedule"]]) {
+    for (const current of [false, true]) {
+      const html = renderTeam(current ? [player] : [], "cards", true, "overview", { status, current_player_id: current ? "p1" : null });
+      assert.equal(html.split(label).length - 1, 1);
+    }
+  }
 });
 
 test("bidding panel labels the displayed price for live, base-price and sold states", () => {

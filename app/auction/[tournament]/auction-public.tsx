@@ -8,6 +8,7 @@ import AuctionImage from "@/app/components/AuctionImage";
 import AuctionResultTag from "@/app/auction/AuctionResultTag";
 import DeveloperWatermark from "@/app/auction/DeveloperWatermark";
 import PlayerCard from "@/app/auction/PlayerCard";
+import PlayerSearch from "@/app/auction/PlayerSearch";
 import TeamMark from "@/app/auction/TeamMark";
 import ViewerSelect from "@/app/auction/ViewerSelect";
 import { useMainSite } from "@/app/auction/useMainSite";
@@ -179,6 +180,10 @@ function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponso
   const backgroundStyle = tournament.background_url
     ? { backgroundImage: `linear-gradient(rgba(7, 45, 80, 0.16), rgba(8, 60, 100, 0.24)), url("${tournament.background_url.replace(/["\\]/g, "")}")` }
     : undefined;
+  const statusBadge = <p className="inline-flex max-w-full items-center justify-center gap-1.5 self-center rounded-full border border-white/15 bg-slate-950/35 px-3 py-1 text-center text-[10px] font-black uppercase leading-tight tracking-[0.14em] text-white/90 sm:text-xs">
+    {tournament.status === "live" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />}
+    {tournament.status === "completed" ? "Auction completed" : tournament.status === "live" ? "Auction is live" : tournament.status === "paused" ? "Auction paused" : "Auction schedule"}
+  </p>;
 
   function showSponsors() {
     setActiveBottomTab("sponsor");
@@ -199,30 +204,28 @@ function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponso
       {screen !== "sponsors" && currentPlayer?.status === "sold" && <SoldFireworks />}
       {refreshMessage && <p role="status" className="absolute bottom-20 left-1/2 z-30 w-max max-w-[90%] -translate-x-1/2 rounded-lg bg-slate-950 px-3 py-2 text-center text-xs font-bold text-white shadow-lg">{refreshMessage}</p>}
       <div className={`mx-auto flex min-h-0 w-full max-w-[1920px] flex-1 flex-col p-2 ${screen === "sponsors" ? "gap-2 sm:p-3" : "gap-2 sm:gap-3 sm:p-3 lg:flex-row"}`}>
-        {screen !== "sponsors" && <aside className="grid h-fit shrink-0 grid-cols-1 gap-2 lg:h-full lg:max-h-full lg:w-[45%] lg:min-w-[320px] lg:grid-rows-[min-content_minmax(min-content,1fr)_min-content] lg:gap-3 lg:overflow-y-auto lg:self-stretch xl:w-[36%] [@media(min-width:1024px)_and_(max-height:760px)]:gap-2 [@media(min-width:1024px)_and_(max-height:600px)]:gap-1">
+        {screen !== "sponsors" && <aside className="grid h-fit max-h-[35dvh] shrink-0 grid-cols-1 gap-2 overflow-y-auto sm:max-h-none sm:overflow-visible lg:h-full lg:max-h-full lg:w-[45%] lg:min-w-[320px] lg:grid-rows-[min-content_min-content] lg:gap-3 lg:overflow-y-auto lg:self-stretch xl:w-[36%] [@media(min-width:1024px)_and_(max-height:760px)]:gap-2 [@media(min-width:1024px)_and_(max-height:600px)]:gap-1">
           <section className="flex min-w-0 items-center justify-between gap-2 overflow-hidden rounded-xl bg-blue-900/55 px-3 py-2 shadow-lg backdrop-blur-sm sm:px-5">
-            {tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt={`${tournament.name} logo`} width={112} height={112} className="h-16 w-16 shrink-0 object-contain sm:h-28 sm:w-28 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]" />}
+            {tournament.tournament_logo_url && <AuctionImage src={tournament.tournament_logo_url} alt={`${tournament.name} logo`} width={112} height={112} className="h-12 w-12 shrink-0 object-contain sm:h-28 sm:w-28 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]" />}
             <h1 className="min-w-0 flex-1 text-center text-[clamp(0.75rem,2.7vw,1rem)] font-black uppercase leading-tight tracking-wide text-white [overflow-wrap:anywhere] sm:text-base lg:text-xl">{tournament.name}</h1>
-            {organizerLogo && <AuctionImage src={organizerLogo} alt="Tournament organizer" width={112} height={112} className="h-16 w-16 shrink-0 object-contain sm:h-28 sm:w-28 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]" />}
+            {organizerLogo && <AuctionImage src={organizerLogo} alt="Tournament organizer" width={112} height={112} className="h-12 w-12 shrink-0 object-contain sm:h-28 sm:w-28 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]" />}
           </section>
 
           <section className="flex min-w-0 flex-col justify-center rounded-xl border border-white/15 bg-gradient-to-br from-blue-950/80 via-blue-900/70 to-indigo-950/80 p-2 text-center shadow-lg backdrop-blur-sm sm:p-5 [@media(min-width:1024px)_and_(max-height:760px)]:p-2">
-            <p className="inline-flex items-center gap-1.5 self-center rounded-full border border-white/15 bg-slate-950/35 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white/90 sm:text-xs">
-              {tournament.status === "live" && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
-              {tournament.status === "completed" ? "Auction completed" : tournament.status === "live" ? "Auction is live" : tournament.status === "paused" ? "Auction paused" : "Auction schedule"}
-            </p>
+            {!currentPlayer && statusBadge}
             {tournament.status === "setup" && <div className="mt-3 rounded-lg bg-blue-950/40 px-2 py-3 text-yellow-300 sm:mt-5 sm:px-4 sm:py-4">
               <p className="text-[10px] font-bold uppercase tracking-wide text-white/75 sm:text-xs">{tournament.scheduled_date ? "Auction date" : "Current status"}</p>
               <p className="mt-1 text-base font-black sm:text-2xl">{tournament.scheduled_date ? formatAuctionDate(tournament.scheduled_date) : tournament.status.toUpperCase()}</p>
             </div>}
-            {currentPlayer && <div className={`mt-3 grid min-w-0 items-center gap-2 text-left sm:mt-5 sm:gap-4 [@media(min-width:1024px)_and_(max-height:760px)]:mt-3 [@media(min-width:1024px)_and_(max-height:760px)]:gap-2 ${playerTeam ? "grid-cols-[clamp(5rem,24vw,6.5rem)_minmax(0,1fr)_clamp(5rem,24vw,6.5rem)] sm:grid-cols-[112px_minmax(0,1fr)_112px] lg:grid-cols-[minmax(0,128px)_minmax(185px,1fr)_minmax(0,128px)] 2xl:grid-cols-[144px_minmax(0,1fr)_144px] [@media(min-width:1024px)_and_(max-height:760px)]:grid-cols-[14dvh_minmax(0,1fr)_14dvh]" : "grid-cols-[clamp(5rem,24vw,6.5rem)_minmax(0,1fr)] sm:grid-cols-[112px_minmax(0,1fr)] lg:grid-cols-[128px_minmax(0,1fr)] 2xl:grid-cols-[144px_minmax(0,1fr)] [@media(min-width:1024px)_and_(max-height:760px)]:grid-cols-[14dvh_minmax(0,1fr)]"}`}>
+            {currentPlayer && <div className={`mt-1 grid min-w-0 items-start gap-2 text-left sm:gap-4 [@media(min-width:1024px)_and_(max-height:760px)]:gap-2 ${playerTeam ? "grid-cols-[clamp(3.75rem,19vw,4.5rem)_minmax(0,1fr)_clamp(3.75rem,19vw,4.5rem)] sm:grid-cols-[112px_minmax(0,1fr)_112px] lg:grid-cols-[minmax(0,128px)_minmax(185px,1fr)_minmax(0,128px)] 2xl:grid-cols-[144px_minmax(0,1fr)_144px] [@media(min-width:1024px)_and_(max-height:760px)]:grid-cols-[14dvh_minmax(0,1fr)_14dvh]" : "grid-cols-[clamp(3.75rem,19vw,4.5rem)_minmax(0,1fr)] sm:grid-cols-[112px_minmax(0,1fr)] lg:grid-cols-[128px_minmax(0,1fr)] 2xl:grid-cols-[144px_minmax(0,1fr)] [@media(min-width:1024px)_and_(max-height:760px)]:grid-cols-[14dvh_minmax(0,1fr)]"}`}>
               <div className="relative">
-                {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={144} height={144} className="h-[clamp(5rem,24vw,6.5rem)] w-[clamp(5rem,24vw,6.5rem)] rounded-lg border border-white/25 object-cover shadow-md sm:h-28 sm:w-28 lg:aspect-square lg:h-auto lg:w-full 2xl:h-36 2xl:w-36 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]" /> : <div className="grid h-[clamp(5rem,24vw,6.5rem)] w-[clamp(5rem,24vw,6.5rem)] place-items-center rounded-lg border border-white/20 bg-white/10 text-2xl font-black shadow-md sm:h-28 sm:w-28 sm:text-3xl lg:aspect-square lg:h-auto lg:w-full 2xl:h-36 2xl:w-36 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]">{currentPlayer.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>}
+                {currentPlayer.photo_url ? <AuctionImage src={currentPlayer.photo_url} alt="" width={144} height={144} className="h-[clamp(3.75rem,19vw,4.5rem)] w-[clamp(3.75rem,19vw,4.5rem)] rounded-lg border border-white/25 object-cover shadow-md sm:h-28 sm:w-28 lg:aspect-square lg:h-auto lg:w-full 2xl:h-36 2xl:w-36 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]" /> : <div className="grid h-[clamp(3.75rem,19vw,4.5rem)] w-[clamp(3.75rem,19vw,4.5rem)] place-items-center rounded-lg border border-white/20 bg-white/10 text-xl font-black shadow-md sm:h-28 sm:w-28 sm:text-3xl lg:aspect-square lg:h-auto lg:w-full 2xl:h-36 2xl:w-36 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]">{currentPlayer.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>}
                 <span className="absolute left-0 top-0 -translate-y-1/2 rounded-full bg-yellow-300 px-2 py-0.5 text-[10px] font-black text-slate-950 shadow-md sm:text-sm">#{currentPlayer.player_number}</span>
                 {currentPlayer.status !== "available" && <AuctionResultTag status={tournament.rtm_enabled !== false && currentPlayer.status === "sold" && currentPlayer.rtm_team_id ? "rtm" : currentPlayer.status} className="!left-1/2 !right-auto !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-2 !px-1 !py-1 !text-[10px] !tracking-normal sm:!px-2 sm:!text-lg" />}
               </div>
               <div className="min-w-0 text-center">
-                <p className="break-words text-xl font-black leading-tight text-white [overflow-wrap:anywhere] sm:text-2xl 2xl:text-3xl">{currentPlayer.full_name}</p>
+                {statusBadge}
+                <p className="mt-1 break-words text-base font-black leading-tight text-white [overflow-wrap:anywhere] sm:text-2xl 2xl:text-3xl">{currentPlayer.full_name}</p>
                 {!playerTeam && currentPlayer.status !== "unsold" && <p className="break-words text-base font-black leading-tight text-yellow-300 [overflow-wrap:anywhere] sm:text-xl lg:text-2xl">
                   <span className="whitespace-nowrap">{currentPlayer.status === "sold" ? "Sold for: " : tournament.current_bid_team_id ? "Current bid: " : "Base Points: "}</span>
                   <span>{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? getAuctionBasePrice(currentPlayer, priceCategories, tournament.base_price))}</span>
@@ -231,50 +234,49 @@ function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponso
                 <dl className="mt-1 flex flex-wrap justify-center gap-1 lg:items-start">
                   {tournament.show_player_category && displayPlayerCategory(currentPlayer.category) && <div className="inline-flex max-w-full flex-wrap items-baseline gap-x-1 rounded-md border border-cyan-300/30 bg-cyan-950/60 px-1.5 py-0.5 leading-tight">
                     <dt className="text-[10px] font-bold uppercase tracking-wide text-cyan-200 sm:text-xs">Category</dt>
-                    <dd className="break-words text-sm font-black text-white [overflow-wrap:anywhere]">{displayPlayerCategory(currentPlayer.category)}</dd>
+                    <dd className="min-w-0 break-words text-sm font-black text-white [overflow-wrap:anywhere]">{displayPlayerCategory(currentPlayer.category)}</dd>
                   </div>}
                   {tournament.projector_player_fields.includes("skill") && currentPlayer.role?.trim() && <div className="inline-flex max-w-full flex-wrap items-baseline gap-x-1 rounded-md border border-white/20 bg-slate-950/45 px-1.5 py-0.5 leading-tight lg:flex-nowrap">
                     <dt className="text-[10px] font-bold uppercase tracking-wide text-blue-200 sm:text-xs lg:shrink-0 lg:whitespace-nowrap">Player Role</dt>
-                    <dd className="break-words text-sm font-bold text-white [overflow-wrap:anywhere] lg:min-w-0">{currentPlayer.role}</dd>
+                    <dd className="min-w-0 break-words text-sm font-bold text-white [overflow-wrap:anywhere]">{currentPlayer.role}</dd>
                   </div>}
                   {tournament.projector_player_fields.includes("previous_team") && currentPlayer.previous_team?.trim() && <div className="inline-flex max-w-full flex-wrap items-baseline gap-x-1 rounded-md border border-white/20 bg-slate-950/45 px-1.5 py-0.5 leading-tight">
                     <dt className="text-[10px] font-bold uppercase tracking-wide text-blue-200 sm:text-xs">Previous team</dt>
-                    <dd className="break-words text-sm font-bold text-white [overflow-wrap:anywhere]">{currentPlayer.previous_team}</dd>
+                    <dd className="min-w-0 break-words text-sm font-bold text-white [overflow-wrap:anywhere]">{currentPlayer.previous_team}</dd>
                   </div>}
                 </dl>
               </div>
               {playerTeam && <div className="flex min-w-0 flex-col items-center gap-1">
                 <TeamMark name={playerTeam.name} logoUrl={playerTeam.logo_url} size="viewer" />
-                {currentPlayer.status !== "unsold" && <div className="w-full rounded-lg bg-slate-950/45 px-1 py-1 text-center">
-                  <p className="whitespace-nowrap text-[clamp(0.55rem,2.4vw,0.75rem)] font-bold uppercase text-white/70 sm:text-xs">{currentPlayer.status === "sold" ? "Sold for" : tournament.current_bid === null ? "Base Points" : "Current bid"}</p>
-                  <p className="break-words text-lg font-black leading-tight text-yellow-300 [overflow-wrap:anywhere] sm:text-xl lg:text-2xl [@media(min-width:1024px)_and_(max-height:760px)]:text-xl">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? getAuctionBasePrice(currentPlayer, priceCategories, tournament.base_price))}</p>
+                {currentPlayer.status !== "unsold" && <div className="@container w-full rounded-lg bg-slate-950/45 px-0.5 py-1 text-center sm:px-1">
+                  <p className="whitespace-nowrap text-[clamp(0.5rem,13cqw,0.75rem)] font-bold uppercase leading-tight text-white/70">{currentPlayer.status === "sold" ? "Sold for" : tournament.current_bid === null ? "Base Points" : "Current bid"}</p>
+                  <p className="break-words text-[clamp(0.875rem,4vw,1.125rem)] font-black leading-tight text-yellow-300 [overflow-wrap:anywhere] sm:text-xl lg:text-2xl [@media(min-width:1024px)_and_(max-height:760px)]:text-xl">{formatPoints(currentPlayer.status === "sold" ? currentPlayer.sold_price : tournament.current_bid ?? getAuctionBasePrice(currentPlayer, priceCategories, tournament.base_price))}</p>
                 </div>}
               </div>}
             </div>}
           </section>
-          <div className="mx-auto hidden w-fit lg:block">
-            <DeveloperWatermark prominent />
-          </div>
         </aside>}
 
         <section className={`flex min-h-0 min-w-0 flex-1 flex-col gap-2 sm:gap-3 ${screen === "sponsors" ? "w-full" : ""}`}>
           {screen !== "sponsors" && <header className="relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl bg-blue-900/55 px-3 py-2 shadow-lg backdrop-blur-sm sm:gap-4 sm:px-4">
             <nav className="flex rounded-full bg-slate-950/45 p-1" aria-label="Auction viewer screens">
-              {(["overview", "players"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setScreen(tab); setSelectedTeamSlug(""); }} aria-current={screen === tab ? "page" : undefined} className={`rounded-full px-3 py-2 text-[10px] font-black uppercase transition sm:px-5 sm:text-sm ${screen === tab ? "bg-yellow-400 text-slate-950" : "text-white hover:bg-white/10"}`}>{tab === "overview" ? "Teams" : "Players"}</button>)}
+              {(["overview", "players"] as const).map((tab) => <button key={tab} type="button" onClick={() => { setScreen(tab); setSelectedTeamSlug(""); }} aria-current={screen === tab ? "page" : undefined} className={`rounded-full px-2 py-1.5 text-[10px] font-black uppercase transition sm:px-5 sm:py-2 sm:text-sm ${screen === tab ? "bg-yellow-400 text-slate-950" : "text-white hover:bg-white/10"}`}>{tab === "overview" ? "Teams" : "Players"}</button>)}
             </nav>
             <div className="flex flex-wrap items-center gap-1.5">
-              {([["Sold", soldPlayers.length, "bg-green-600"], ["Unsold", unsoldCount, "bg-red-500"], ["Avl", availableCount, "bg-amber-500"]] as const).map(([label, count, color]) => <span key={label} className={`${color} rounded-full px-2.5 py-1 text-[9px] font-black uppercase text-white sm:px-3 sm:text-xs`}>{label} · {count}</span>)}
+              {([["Sold", "S", soldPlayers.length, "bg-green-600"], ["Unsold", "U", unsoldCount, "bg-red-500"], ["Available", "A", availableCount, "bg-amber-500"]] as const).map(([label, shortLabel, count, color]) => <span key={label} aria-label={`${label}: ${count}`} className={`${color} rounded-full px-1.5 py-1 text-[9px] font-black uppercase text-white sm:px-3 sm:text-xs`}><span aria-hidden="true" className="sm:hidden">{shortLabel}</span><span aria-hidden="true" className="hidden sm:inline">{label === "Available" ? "Avl" : label}</span> · {count}</span>)}
             </div>
           </header>}
 
-          {screen === "players" && <div className="relative z-10 flex shrink-0 flex-wrap items-center gap-2 rounded-xl bg-blue-900/50 p-2.5 shadow-md backdrop-blur-sm sm:p-3">
-            {([["all", "All"], ["sold", "Sold"], ["unsold", "Unsold"], ["available", "Avl"]] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setFilterStatus(value)} className={`rounded-full px-3 py-1.5 text-[9px] font-black uppercase sm:text-xs ${filterStatus === value ? "bg-yellow-400 text-slate-950" : "bg-slate-950/35 text-white"}`}>{label}</button>)}
-            <ViewerSelect label="Filter players by category" value={filterCategory} onChange={setFilterCategory} options={[
+          {screen === "players" && <div className="relative z-10 flex shrink-0 items-center gap-1 rounded-xl bg-blue-900/50 p-1.5 shadow-md backdrop-blur-sm sm:gap-2 sm:p-3">
+            {([["all", "All", "All"], ["sold", "Sold", "S"], ["unsold", "Unsold", "U"], ["available", "Available", "A"]] as const).map(([value, label, shortLabel]) => <button key={value} type="button" aria-label={label} aria-pressed={filterStatus === value} onClick={() => setFilterStatus(value)} className={`shrink-0 rounded-full px-2 py-1.5 text-[9px] font-black uppercase sm:px-3 sm:text-xs [@media(min-width:1024px)_and_(max-width:1100px)]:px-2 ${filterStatus === value ? "bg-yellow-400 text-slate-950" : "bg-slate-950/35 text-white"}`}><span aria-hidden="true" className="sm:hidden [@media(min-width:1024px)_and_(max-width:1100px)]:inline">{shortLabel}</span><span aria-hidden="true" className="hidden sm:inline [@media(min-width:1024px)_and_(max-width:1100px)]:hidden">{label === "Available" ? "Avl" : label}</span></button>)}
+            <div className="min-w-0 max-w-16 shrink sm:max-w-36 [@media(min-width:1024px)_and_(max-width:1100px)]:max-w-16">
+            <ViewerSelect label="Filter players by category" value={filterCategory} onChange={setFilterCategory} compactLabel={filterCategory === "all" ? "ALL" : undefined} options={[
               { value: "all", label: "All categories" },
               ...categories.map((category) => ({ value: category, label: category })),
             ]} />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search players" className="h-8 min-w-28 flex-1 rounded-full bg-slate-950/35 px-3 text-[10px] text-white outline-none placeholder:text-white/60 sm:text-xs" />
-            <span className="whitespace-nowrap rounded-full bg-slate-950/35 px-3 py-2 text-[10px] font-black text-white sm:text-xs">{filteredPlayers.length} / {players.length} players</span>
+            </div>
+            <PlayerSearch value={search} onChange={setSearch} placeholder="Search" className="max-w-48 flex-1 sm:max-w-none" />
+            <span aria-label={`${filteredPlayers.length} of ${players.length} players`} className="shrink-0 whitespace-nowrap rounded-full bg-slate-950/35 px-2 py-2 text-[10px] font-black text-white sm:px-3 sm:text-xs">{filteredPlayers.length}/{players.length}</span>
           </div>}
 
           <div id="home-auction-content" className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -309,11 +311,11 @@ function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponso
                   <span className="font-black text-yellow-300">Balance: {formatPoints(selectedTeam.points_remaining)}</span>
                 </div>
               </div>
-              {tournament.viewer_squad_view === "field" ? <SquadField players={filteredPlayers} playerFields={tournament.projector_player_fields} rtmEnabled={tournament.rtm_enabled !== false} showCategory={tournament.show_player_category} /> : filteredPlayers.length ? <div className="grid gap-2 sm:grid-cols-2">{filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} teams={teams} rtmEnabled={tournament.rtm_enabled !== false} playerFields={tournament.projector_player_fields} showCategory={tournament.show_player_category} />)}</div> : <EmptySquad team={selectedTeam} />}
+              {tournament.viewer_squad_view === "field" ? <SquadField players={filteredPlayers} playerFields={tournament.projector_player_fields} rtmEnabled={tournament.rtm_enabled !== false} showCategory={tournament.show_player_category} /> : filteredPlayers.length ? <div className="grid gap-2 sm:grid-cols-2">{filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} teams={teams} rtmEnabled={tournament.rtm_enabled !== false} playerFields={tournament.projector_player_fields} showCategory={tournament.show_player_category} compactMobile />)}</div> : <EmptySquad team={selectedTeam} />}
             </section>}
 
             {screen === "players" && <section>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} teams={teams} rtmEnabled={tournament.rtm_enabled !== false} playerFields={tournament.projector_player_fields} showCategory={tournament.show_player_category} />)}</div>
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">{filteredPlayers.map((player) => <PlayerCard key={player.id} player={player} teams={teams} rtmEnabled={tournament.rtm_enabled !== false} playerFields={tournament.projector_player_fields} showCategory={tournament.show_player_category} dense />)}</div>
             </section>}
 
             {screen === "sponsors" && (sponsors.length > 0 ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -344,10 +346,10 @@ function AuctionHomeViewer({ tournament, teams, players, priceCategories, sponso
         </div>
       </section>}
 
-      <div className={`flex shrink-0 justify-center bg-blue-950/95 py-1 ${screen === "sponsors" ? "" : "lg:hidden"}`}><DeveloperWatermark prominent /></div>
-      <nav className="z-20 flex h-[68px] shrink-0 items-center justify-center gap-8 bg-blue-950/95 px-4 shadow-[0_-8px_24px_rgba(15,23,42,0.2)] sm:h-[74px] sm:gap-16" aria-label="Viewer navigation">
-        <button type="button" onClick={showHome} className={`flex min-w-16 flex-col items-center gap-1 text-[10px] font-black uppercase ${activeBottomTab === "home" ? "text-yellow-300" : "text-slate-300"}`}><span aria-hidden="true" className="text-xl leading-none">⌂</span>Home</button>
-        <button type="button" onClick={showSponsors} className={`flex min-w-16 flex-col items-center gap-1 text-[10px] font-black uppercase ${activeBottomTab === "sponsor" ? "text-yellow-300" : "text-slate-300"}`}><span aria-hidden="true" className="text-xl leading-none">★</span>Sponsor</button>
+      <nav className="z-20 flex h-[52px] shrink-0 items-center justify-center gap-2 bg-blue-950/95 px-2 shadow-[0_-8px_24px_rgba(15,23,42,0.2)] sm:h-[56px] sm:gap-16 sm:px-4" aria-label="Viewer navigation">
+        <button type="button" onClick={showHome} className={`flex min-h-11 min-w-16 flex-col items-center justify-center gap-1 text-[10px] font-black uppercase ${activeBottomTab === "home" ? "text-yellow-300" : "text-slate-300"}`}><span aria-hidden="true" className="text-xl leading-none">⌂</span>Home</button>
+        <button type="button" onClick={showSponsors} className={`flex min-h-11 min-w-16 flex-col items-center justify-center gap-1 text-[10px] font-black uppercase ${activeBottomTab === "sponsor" ? "text-yellow-300" : "text-slate-300"}`}><span aria-hidden="true" className="text-xl leading-none">★</span>Sponsor</button>
+        <DeveloperWatermark compact prominent />
       </nav>
     </main>
   );

@@ -19,7 +19,7 @@ export default function TeamMark({
   const sizeClass = size === "sm" ? "h-8 w-8 text-xs"
     : size === "lg" ? "h-24 w-24 text-3xl"
     : size === "projector" ? "h-[min(24dvh,23vw,14rem,max(3rem,calc(100dvh_-_31rem)))] w-[min(24dvh,23vw,14rem,max(3rem,calc(100dvh_-_31rem)))] text-[min(5dvh,6vw,4rem)]"
-    : size === "viewer" ? "h-[clamp(5rem,24vw,6.5rem)] w-[clamp(5rem,24vw,6.5rem)] text-2xl sm:h-28 sm:w-28 sm:text-3xl lg:aspect-square lg:h-auto lg:w-full 2xl:h-36 2xl:w-36 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]"
+    : size === "viewer" ? "h-[clamp(3.75rem,19vw,4.5rem)] w-[clamp(3.75rem,19vw,4.5rem)] text-xl sm:h-28 sm:w-28 sm:text-3xl lg:aspect-square lg:h-auto lg:w-full 2xl:h-36 2xl:w-36 [@media(min-width:1024px)_and_(max-height:760px)]:h-[14dvh] [@media(min-width:1024px)_and_(max-height:760px)]:w-[14dvh]"
     : "h-14 w-14 text-lg";
   if (logoUrl) {
     const dimension = size === "sm" ? 32 : size === "lg" ? 96 : size === "projector" ? 224 : size === "viewer" ? 144 : 56;

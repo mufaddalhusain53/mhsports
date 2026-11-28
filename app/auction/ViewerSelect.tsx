@@ -2,11 +2,12 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-export default function ViewerSelect<T extends string>({ label, value, options, onChange }: {
+export default function ViewerSelect<T extends string>({ label, value, options, onChange, compactLabel }: {
   label: string;
   value: T;
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
+  compactLabel?: string;
 }) {
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -49,7 +50,7 @@ export default function ViewerSelect<T extends string>({ label, value, options, 
     buttons[index].focus();
   }
 
-  return <div ref={containerRef} className="relative" onBlur={(event) => {
+  return <div ref={containerRef} className="relative min-w-0" onBlur={(event) => {
     if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
   }} onKeyDown={(event) => {
     if (event.key === "Escape" && open) {
@@ -67,8 +68,8 @@ export default function ViewerSelect<T extends string>({ label, value, options, 
       }
     }
   }}>
-    <button ref={triggerRef} type="button" aria-label={`${label}: ${selectedLabel}`} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => open ? setOpen(false) : showMenu()} className="flex cursor-pointer items-center gap-2 rounded-full bg-slate-950/45 px-3 py-2 text-[10px] font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 sm:text-xs">
-      <span className="max-w-28 truncate">{selectedLabel}</span>
+    <button ref={triggerRef} type="button" aria-label={`${label}: ${selectedLabel}`} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => open ? setOpen(false) : showMenu()} className="flex max-w-full cursor-pointer items-center gap-2 rounded-full bg-slate-950/45 px-3 py-2 text-[10px] font-black text-white outline-none focus-visible:ring-2 focus-visible:ring-yellow-400 sm:text-xs">
+      {compactLabel ? <><span className="min-w-0 truncate sm:hidden [@media(min-width:1024px)_and_(max-width:1100px)]:inline">{compactLabel}</span><span className="hidden max-w-28 truncate sm:inline [@media(min-width:1024px)_and_(max-width:1100px)]:hidden">{selectedLabel}</span></> : <span className="min-w-0 max-w-28 truncate">{selectedLabel}</span>}
       <span aria-hidden="true" className={`text-yellow-300 transition-transform ${open ? "rotate-180" : ""}`}>⌄</span>
     </button>
     {open && <div ref={menuRef} id={menuId} role="menu" aria-label={label} style={{ maxHeight: placement.maxHeight }} className={`absolute z-30 w-40 overflow-y-auto rounded-xl border border-white/20 bg-blue-950 p-1.5 shadow-xl ${placement.left ? "left-0" : "right-0"} ${placement.above ? "bottom-full mb-2" : "top-full mt-2"}`}>
