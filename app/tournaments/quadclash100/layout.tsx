@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: { absolute: "QUADCLASH 100", template: "%s" },
+  title: { absolute: "QUADCLASH 100" },
   icons: {
     icon: "/quadclash100-logo.png",
     shortcut: "/quadclash100-logo.png",

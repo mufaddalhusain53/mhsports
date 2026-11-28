@@ -10,7 +10,6 @@ const sections = [
 ];
 
 export const metadata = {
-  title: { absolute: "Friendship Cup" },
   description: "Friendship Cup hub: stats, schedule, points table, hall of fame and gallery.",
 };
 

@@ -1,8 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 
-export const metadata = { title: "Friendship Group Committee" };
-
 const members = [
   { name: "Mufaddal Bookwala", description: "Founder of Friendship Group & Owner of Hakimi Nest" },
   { name: "Aliasgar Patanwala", description: "Owner of Ezzi Arts & Frames" },

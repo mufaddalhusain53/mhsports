@@ -2,7 +2,6 @@ import Link from "next/link";
 import TournamentLogo from "../../../components/TournamentLogo";
 import QuadClashPointsTableClient from "./PointsTableClient";
 
-export const metadata = { title: "QuadClash 100 Points Table" };
 const source = "https://cricheroes.com/tournament/1987117/quad-clash-100/point-table";
 
 export default function QuadClashPointsTablePage() {

@@ -10,8 +10,6 @@ const seasons = [
   { season: 7, inProgress: true },
 ];
 
-export const metadata = { title: "Friendship Cup Hall of Fame" };
-
 export default function HallOfFamePage() {
   return <SectionShell title="Hall of Fame" description="A season-by-season record of Friendship Cup champions and runners-up.">
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

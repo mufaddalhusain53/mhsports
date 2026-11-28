@@ -2,8 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import TournamentLogo from "../../../components/TournamentLogo";
 
-export const metadata = { title: "QuadClash 100 Organizing Team" };
-
 const organizingTeam = [
   "Mufaddal Bookwala",
   "Mohsin Pocketwala",
